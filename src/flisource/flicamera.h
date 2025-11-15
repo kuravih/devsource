@@ -1,0 +1,467 @@
+#ifndef __FLICAMERA_H__
+#define __FLICAMERA_H__
+
+#pragma once
+
+#include "testbed/common.hpp"
+#include "testbed/shmio_functions.hpp"
+#include "fli_functions.hpp"
+#include "kato/truetype.hpp"
+#include "kato/log.hpp"
+#include "link/zmq_link.hpp"
+#include "flisource_def.h"
+#include "toml11/toml.hpp"
+
+#include <atomic>
+
+volatile std::atomic<bool> busy{true};
+
+// ====================================================================================================================
+struct FliCamInfo
+{
+    char dev[128], model[128], serial[128];
+};
+// ====================================================================================================================
+std::vector<FliCamInfo> QueryFliCamInfoList()
+{
+    FliCamInfo info;
+    std::vector<FliCamInfo> ret;
+
+    char **list = NULL;
+    flidomain_t domain = static_cast<long>(FliDomain::USB) | static_cast<long>(FliDevice::CAMERA);
+
+    LIBFLIAPI error = FLIList(domain, &list);
+    if (error < 0)
+    {
+        kato::log::cerr << KATO_RED << "flicamera.cpp::QueryUSBFliCamInfoList() FLIList failed with error code " << error << KATO_RESET << std::endl;
+        if (list)
+        {
+            FLIFreeList(list);
+        }
+        return ret;
+    }
+    else
+    {
+        int count = 0;
+        while (list[count])
+        {
+            kato::log::cout << KATO_GREEN << "flicamera.cpp::QueryUSBFliCamInfoList() Found device: " << list[count] << KATO_RESET << std::endl;
+            std::vector<std::string> dev_model = kato::function::split(list[count], ';');
+
+            std::strncpy(info.dev, dev_model[0].c_str(), sizeof(info.dev) - 1);
+            info.dev[sizeof(info.dev) - 1] = '\0';
+
+            flidev_t handle;
+            error = FLIOpen(&handle, info.dev, domain);
+            if (error < 0)
+            {
+                kato::log::cerr << KATO_RED << "flicamera.cpp::QueryUSBFliCamInfoList() FLIOpen() failed with error code " << error << KATO_RESET << std::endl;
+                if (list)
+                {
+                    FLIFreeList(list);
+                }
+                return ret;
+            }
+            else
+            {
+                error = FLIGetSerialString(handle, info.serial, sizeof(info.serial));
+                if (error < 0)
+                {
+                    kato::log::cerr << KATO_RED << "flicamera.cpp::QueryUSBFliCamInfoList() FLIGetSerialString() failed with error code " << error << KATO_RESET << std::endl;
+                    FLIClose(handle);
+                    if (list)
+                    {
+                        FLIFreeList(list);
+                    }
+                    return ret;
+                }
+                error = FLIGetModel(handle, info.model, sizeof(info.model));
+                if (error < 0)
+                {
+                    kato::log::cerr << KATO_RED << "flicamera.cpp::QueryUSBFliCamInfoList() FLIGetModel() failed with error code " << error << KATO_RESET << std::endl;
+                    FLIClose(handle);
+                    if (list)
+                    {
+                        FLIFreeList(list);
+                    }
+                    return ret;
+                }
+            }
+            FLIClose(handle);
+            ret.push_back(info);
+            count++;
+        }
+    }
+    return ret;
+}
+// ====================================================================================================================
+struct FliCamera
+{
+    flidev_t handle;
+    char dev[16], model[16], serial[16];
+    long px_max;
+    long exposureTime_ms;
+    double temperature_C;
+    long hwrev, fwrev;
+    double pxw, pxh;
+    testbed::FrameArea<long> full, roi;
+    uint8_t datatype;
+    long port;
+    shmio::SharedMemory memory;
+    shmio::Keyword *shm_exposureTime_ms, *shm_temperature_C, *shm_roi_tl_x, *shm_roi_tl_y, *shm_roi_br_x, *shm_roi_br_y, *shm_gain;
+
+    FliCamera(const char *_dev, const char *_model, const char *_serial, long _port, const testbed::FrameArea<long> &_roi) : px_max(std::pow(2, 12) - 1), exposureTime_ms(1), temperature_C(20.0), roi(_roi), datatype(_DATATYPE_UINT16), port(_port)
+    {
+        strncpy(dev, _dev, sizeof(dev) - 1);
+        strncpy(model, _model, sizeof(model) - 1);
+        strncpy(serial, _serial, sizeof(serial) - 1);
+        flidomain_t domain = static_cast<long>(FliDomain::USB) | static_cast<long>(FliDevice::CAMERA);
+        if (LIBFLIAPI error = FLIOpen(&handle, dev, domain))
+            throw FliException(error);
+        if (LIBFLIAPI error = FLIGetHWRevision(handle, &hwrev))
+            throw FliException(error);
+        if (LIBFLIAPI error = FLIGetFWRevision(handle, &fwrev))
+            throw FliException(error);
+        if (LIBFLIAPI error = FLIGetPixelSize(handle, &pxw, &pxh))
+            throw FliException(error);
+        if (LIBFLIAPI error = FLIGetArrayArea(handle, &full.tl.x, &full.tl.y, &full.br.x, &full.br.y))
+            throw FliException(error);
+        // if (LIBFLIAPI error = FLIGetVisibleArea(handle, &roi.tl.x, &roi.tl.y, &roi.br.x, &roi.br.y))
+        //     throw FliException(error);
+
+        // long long offsetX = _roi.tl.x, offsetY = _roi.tl.y, width = _roi.size().width, height = _roi.size().height;
+        if (LIBFLIAPI error = FLISetImageArea(handle, _roi.tl.x, _roi.tl.y, _roi.br.x, _roi.br.y))
+            throw FliException(error);
+        // shm_roi_tl_x->value.numl = roi.tl.x = offsetX;
+        // shm_roi_tl_y->value.numl = roi.tl.y = offsetY;
+        // shm_roi_br_x->value.numl = roi.br.x = offsetX + width;
+        // shm_roi_br_y->value.numl = roi.br.y = offsetY + height;
+
+        if (LIBFLIAPI error = FLISetExposureTime(handle, exposureTime_ms))
+            throw FliException(error);
+        if (LIBFLIAPI error = FLISetTemperature(handle, temperature_C))
+            throw FliException(error);
+        setFrameType(FliFrameType::NORMAL);
+        setVBinning(FliBinning::B_1X);
+        setHBinning(FliBinning::B_1X);
+        setNFlushes(FliFlush::F_1X);
+    }
+    int openStream()
+    {
+        if (testbed::create_camera_memory(memory, (std::string(serial) + "_" FLISOURCE_STREAM_STR).c_str(), full.size(), roi.size(), shmio::DataType::UINT16, serial, px_max, port) == 0)
+        {
+            shm_exposureTime_ms = find_keyword("EXPTIME");
+            shm_exposureTime_ms->value.numl = exposureTime_ms;
+            shm_temperature_C = find_keyword("TEMP");
+            shm_temperature_C->value.numf = temperature_C;
+            shm_roi_tl_x = find_keyword("ROI.TL.X");
+            shm_roi_tl_y = find_keyword("ROI.TL.Y");
+            shm_roi_br_x = find_keyword("ROI.BR.X");
+            shm_roi_br_y = find_keyword("ROI.BR.Y");
+            shm_roi_tl_x->value.numl = roi.tl.x;
+            shm_roi_tl_y->value.numl = roi.tl.y;
+            shm_roi_br_x->value.numl = roi.br.x;
+            shm_roi_br_y->value.numl = roi.br.y;
+            return 0;
+        }
+        return -1;
+    }
+    int closeStream()
+    {
+        return shmio::close_shared_memory(memory);
+    }
+    inline shmio::SharedStorage *get_storage_ptr()
+    {
+        return shmio::get_storage_ptr(memory);
+    }
+    inline shmio::Keyword *find_keyword(const char *_name)
+    {
+        return shmio::find_keyword(memory, _name);
+    }
+    template <typename Type>
+    inline std::span<Type> get_pixels_as()
+    {
+        return shmio::get_pixels_as<Type>(memory);
+    }
+    template <typename Type>
+    void overlay(kato::TrueTypeFont &_ttf, const std::string &_text)
+    {
+        std::span<Type> pixels = get_pixels_as<Type>();
+        _ttf.renderText(pixels.data(), roi.size().width, roi.size().height, 10, 10, _text, px_max, px_max);
+    }
+    void setExposureTime_ms(const double &_exposureTime_ms)
+    {
+        shm_exposureTime_ms->value.numl = exposureTime_ms = _exposureTime_ms;
+        if (LIBFLIAPI error = FLISetExposureTime(handle, _exposureTime_ms))
+            throw FliException(error);
+    }
+    void setTemperature_C(double _temperature_C)
+    {
+        shm_temperature_C->value.numf = temperature_C = _temperature_C;
+        if (LIBFLIAPI error = FLISetTemperature(handle, (double)_temperature_C))
+            throw FliException(error);
+    }
+    void updateTemperature_C()
+    {
+        if (LIBFLIAPI error = FLIGetTemperature(handle, &temperature_C))
+            throw FliException(error);
+        shm_temperature_C->value.numf = temperature_C;
+    }
+    void setFrameType(const FliFrameType &_type)
+    {
+        if (LIBFLIAPI error = FLISetFrameType(handle, (fliframe_t)_type))
+            throw FliException(error);
+    }
+    void setVBinning(const FliBinning &_binning)
+    {
+        if (LIBFLIAPI error = FLISetVBin(handle, (long)_binning))
+            throw FliException(error);
+    }
+    void setHBinning(const FliBinning &_binning)
+    {
+        if (LIBFLIAPI error = FLISetHBin(handle, (long)_binning))
+            throw FliException(error);
+    }
+    void setNFlushes(const FliFlush &_flush)
+    {
+        if (LIBFLIAPI error = FLISetNFlushes(handle, (long)_flush))
+            throw FliException(error);
+    }
+    void setROI(const testbed::FrameArea<long> &_roi)
+    {
+        long long offsetX = _roi.tl.x, offsetY = _roi.tl.y, width = _roi.size().width, height = _roi.size().height;
+        if (LIBFLIAPI error = FLISetImageArea(handle, _roi.tl.x, _roi.tl.y, _roi.br.x, _roi.br.y))
+            throw FliException(error);
+        shm_roi_tl_x->value.numl = roi.tl.x = offsetX;
+        shm_roi_tl_y->value.numl = roi.tl.y = offsetY;
+        shm_roi_br_x->value.numl = roi.br.x = offsetX + width;
+        shm_roi_br_y->value.numl = roi.br.y = offsetY + height;
+    }
+    testbed::FrameArea<long> getROI() const
+    {
+        return roi;
+    }
+    long getRemainingExpTime_ms()
+    {
+        long remExpTime_ms = 0;
+        if (LIBFLIAPI error = FLIGetExposureStatus(handle, &remExpTime_ms))
+            throw FliException(error);
+        else
+            return remExpTime_ms;
+    }
+    void exposeFrame()
+    {
+        if (LIBFLIAPI error = FLIExposeFrame(handle))
+            throw FliException(error);
+        long remExpTime_ms = exposureTime_ms;
+        while (true)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            remExpTime_ms = getRemainingExpTime_ms();
+            if (remExpTime_ms == 0)
+                break;
+            if (remExpTime_ms > 1000)
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+            else
+                std::this_thread::sleep_for(std::chrono::milliseconds(remExpTime_ms));
+        }
+        if (LIBFLIAPI error = FLIEndExposure(handle))
+            throw FliException(error);
+    }
+    void grabFrame(std::span<uint16_t> &_pixels)
+    {
+        size_t nread = 0;
+        if (LIBFLIAPI error = FLIGrabFrame(handle, _pixels.data(), memory.size, &nread) < 0)
+            throw FliException(error);
+    }
+    ~FliCamera()
+    {
+        FLIClose(handle);
+    }
+};
+// ====================================================================================================================
+void ListenWorker(FliCamera &_camera, ZMQLink &_link)
+{
+    kato::log::cout << KATO_MAGENTA << "flicamera.h::ListenWorker() Listen thread starting..." << KATO_RESET << std::endl;
+
+    static std::string rxMessage;
+    while (_link.isListening.load() && busy.load())
+    {
+        std::this_thread::sleep_for(std::chrono::microseconds(LINK_SHORT_SLEEP_US));
+        rxMessage = _link.Receive();
+        if (rxMessage.size() > 0)
+        {
+            // kato::log::cout << KATO_MAGENTA << "flicamera.h::ListenWorker() rxMessage = " << rxMessage << KATO_RESET << std::endl;
+
+            std::istringstream rxStream(rxMessage);
+            toml::value data = toml::parse(rxStream);
+            std::string sync = "";
+            std::ostringstream txStream;
+            std::string txMessage;
+
+            try // [settings] exposureTime_ms = exposureTime_ms_value
+            {
+                long exposureTime_ms = toml::find<long>(data, "settings", "exposureTime_ms");
+                kato::log::cout << KATO_MAGENTA << "flicamera.h::ListenWorker() exposureTime_ms = " << exposureTime_ms << KATO_RESET << std::endl;
+                _camera.setExposureTime_ms(exposureTime_ms);
+                txStream << toml::value{{"settings", toml::table{{"exposureTime_ms", _camera.exposureTime_ms}}}} << "\n";
+                txMessage = txStream.str();
+                _link.Send(txMessage);
+                continue;
+            }
+            catch (const std::exception &)
+            {
+            }
+
+            try // [settings] temperature_C = temperature_C_value
+            {
+                double temperature_C = toml::find<double>(data, "settings", "temperature_C");
+                kato::log::cout << KATO_MAGENTA << "flicamera.h::ListenWorker() temperature_C = " << temperature_C << KATO_RESET << std::endl;
+                _camera.setTemperature_C(temperature_C);
+                txStream << toml::value{{"settings", toml::table{{"temperature_C", _camera.temperature_C}}}} << "\n";
+                txMessage = txStream.str();
+                _link.Send(txMessage);
+                continue;
+            }
+            catch (const std::exception &)
+            {
+            }
+
+            try // [settings] gain = gain_value
+            {
+                float gain = toml::find<float>(data, "settings", "gain");
+                kato::log::cout << KATO_MAGENTA << "flicamera.h::ListenWorker() gain = " << gain << KATO_RESET << std::endl;
+                // _camera.setGain(gain);
+                // txStream << toml::value{{"settings", toml::table{{"gain", _camera.gain}}}} << "\n";
+                txMessage = txStream.str();
+                _link.Send(txMessage);
+                continue;
+            }
+            catch (const std::exception &)
+            {
+            }
+
+            try // [settings.nudge] x = amount, y = amount
+            {
+                toml::table nudge_table = toml::find<toml::table>(data, "settings", "nudge");
+                int nudge_x = nudge_table["x"].as_integer();
+                int nudge_y = nudge_table["y"].as_integer();
+                testbed::FrameArea roi = _camera.roi;
+                kato::log::cout << KATO_MAGENTA << "flicamera.h::ListenWorker() nudge ROI : " << std::string(roi) << " by (x,y) = (" << nudge_x << "," << nudge_y << ")" << KATO_RESET << std::endl;
+                roi.move(nudge_x, nudge_y, _camera.full);
+                _camera.setROI(roi);
+                txStream << toml::value{{"settings", toml::table{{"roi", std::string(_camera.roi)}}}} << "\n";
+                txMessage = txStream.str();
+                _link.Send(txMessage);
+                continue;
+            }
+            catch (const std::exception &)
+            {
+            }
+
+            try // Settings = "sync"
+            {
+                sync = toml::find<std::string>(data, "settings");
+                kato::log::cout << KATO_MAGENTA << "flicamera.h::ListenWorker() syncing..." << KATO_RESET << std::endl;
+                txStream << toml::value{{"settings", toml::table{{"exposureTime_ms", _camera.exposureTime_ms}, {"temperature_C", _camera.temperature_C}, {"roi", std::string(_camera.roi)}}}} << "\n";
+                txMessage = txStream.str();
+                _link.Send(txMessage);
+                continue;
+            }
+            catch (const std::exception &)
+            {
+            }
+        }
+    }
+    _link.isListening.store(false);
+
+    kato::log::cout << KATO_MAGENTA << "flicamera.h::ListenWorker() Listen thread ending..." << KATO_RESET << std::endl;
+}
+// ====================================================================================================================
+void SourceWorker(FliCamera &_camera)
+{
+    kato::log::cout << KATO_MAGENTA << "flicamera.h::SourceWorker() Source thread starting..." << KATO_RESET << std::endl;
+    if (_camera.openStream() == 0)
+    {
+        kato::TrueTypeFont ttf("../lib/kato/ProggyClean.ttf", 12);
+        std::chrono::system_clock::time_point now;
+        shmio::SharedStorage *storage = _camera.get_storage_ptr();
+        shmio::Keyword *framerate = _camera.find_keyword("FRMRATE");
+        std::span<uint16_t> pixels = shmio::get_pixels_as<uint16_t>(_camera.memory);
+
+        _camera.shm_exposureTime_ms = _camera.find_keyword("EXPTIME");
+        _camera.shm_temperature_C = _camera.find_keyword("TEMP");
+        _camera.shm_gain = _camera.find_keyword("GAIN");
+        _camera.shm_roi_tl_x = _camera.find_keyword("ROI.TL.X");
+        _camera.shm_roi_tl_y = _camera.find_keyword("ROI.TL.Y");
+        _camera.shm_roi_br_x = _camera.find_keyword("ROI.BR.X");
+        _camera.shm_roi_br_y = _camera.find_keyword("ROI.BR.Y");
+
+        kato::log::cout << KATO_MAGENTA << "  - name : " << _camera.memory.name << KATO_RESET << std::endl;
+        kato::log::cout << KATO_MAGENTA << "  - size : " << _camera.memory.size << KATO_RESET << std::endl;
+        kato::log::cout << KATO_MAGENTA << "  - creationtime : " << kato::function::TimeStampString(0, "%Y%m%d.%H%M%S", ".", kato::function::timespec_to_time_point(storage->creationtime)) << KATO_RESET << std::endl;
+        kato::log::cout << KATO_MAGENTA << "  - lastaccesstime : " << kato::function::TimeStampString(0, "%Y%m%d.%H%M%S", ".", kato::function::timespec_to_time_point(storage->lastaccesstime)) << KATO_RESET << std::endl;
+
+        kato::log::cout << KATO_MAGENTA << "flicamera.h::SourceWorker() - starting ..." << KATO_RESET << std::endl;
+        while (busy.load())
+        {
+            now = std::chrono::system_clock::now();
+
+            // ---- begin critical section ----------------------------------------------------------------------------
+            pthread_mutex_lock(&storage->mutex);
+
+            while (!storage->request_flag && !storage->terminate) // Wait until compute marks it ready (or termination)
+                pthread_cond_wait(&storage->request_cond, &storage->mutex);
+
+            if (storage->terminate) // terminate requested
+            {
+                pthread_mutex_unlock(&storage->mutex);
+                break;
+            }
+
+            // --------------------------------------------------------------------------------------------------------
+            framerate->value.numf = kato::function::delta_time_point_to_framerate(kato::function::timespec_to_time_point(storage->lastaccesstime), now);
+
+            _camera.exposeFrame();
+            _camera.grabFrame(pixels);
+            _camera.overlay<uint16_t>(ttf, "now     : " + kato::function::TimeStampString(3, "%H:%M:%S", ".", now) + "\n" +
+                                               "FRMRATE : " + std::to_string(framerate->value.numf) + "\n" +
+                                               "EXPTIME : " + std::to_string(_camera.shm_exposureTime_ms->value.numl) + "\n" +
+                                               "TEMP    : " + std::to_string(_camera.shm_temperature_C->value.numf) + "\n" +
+                                               "GAIN    : " + std::to_string(_camera.shm_gain->value.numf) + "\n" +
+                                               "ROI.TL  : [" + std::to_string(_camera.shm_roi_tl_x->value.numl) + "," + std::to_string(_camera.shm_roi_tl_y->value.numl) + "]" + "\n" +
+                                               "ROI.BR  : [" + std::to_string(_camera.shm_roi_br_x->value.numl) + "," + std::to_string(_camera.shm_roi_br_y->value.numl) + "]");
+
+            storage->lastaccesstime = kato::function::time_point_to_timespec(now);
+
+            kato::log::cout << KATO_MAGENTA << "flicamera.h::SourceWorker() - framerate = " << std::scientific << std::setprecision(5) << framerate->value.numf << KATO_RESET << std::flush;
+            // --------------------------------------------------------------------------------------------------------
+
+            storage->ready_flag = true;
+            storage->request_flag = false; // Clear ready for next cycle
+
+            pthread_cond_signal(&storage->ready_cond);
+            pthread_mutex_unlock(&storage->mutex);
+            // ---- end critical section ------------------------------------------------------------------------------
+
+            std::cout << "\r\33[2K";
+        }
+
+        // ---- begin critical section --------------------------------------------------------------------------------
+        // Terminate shared state cleanly
+        pthread_mutex_lock(&storage->mutex);
+        storage->terminate = true;
+        pthread_cond_broadcast(&storage->ready_cond);
+        pthread_cond_broadcast(&storage->request_cond);
+        pthread_mutex_unlock(&storage->mutex);
+        // ---- end critical section ----------------------------------------------------------------------------------
+
+        kato::log::cout << KATO_MAGENTA << "flicamera.h::SourceWorker() - stop ..." << KATO_RESET << std::endl;
+
+        _camera.closeStream();
+    }
+    kato::log::cout << KATO_MAGENTA << "flicamera.h::SourceWorker() Source thread stopping..." << KATO_RESET << std::endl;
+}
+// ====================================================================================================================
+
+#endif //__FLICAMERA_H__
