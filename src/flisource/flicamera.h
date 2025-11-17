@@ -293,18 +293,18 @@ void ListenWorker(FliCamera &_camera, ZMQLink &_link)
         {
             // kato::log::cout << KATO_MAGENTA << "flicamera.h::ListenWorker() rxMessage = " << rxMessage << KATO_RESET << std::endl;
 
-            std::istringstream rxStream(rxMessage);
-            toml::value data = toml::parse(rxStream);
+            toml::value data = toml::parse(rxMessage);
             std::string sync = "";
             std::ostringstream txStream;
             std::string txMessage;
 
             try // [settings] exposureTime_ms = exposureTime_ms_value
             {
-                long exposureTime_ms = toml::find<long>(data, "settings", "exposureTime_ms");
+                long exposureTime_ms = data.at("settings").at("exposureTime_ms").as_integer();
                 kato::log::cout << KATO_MAGENTA << "flicamera.h::ListenWorker() exposureTime_ms = " << exposureTime_ms << KATO_RESET << std::endl;
                 _camera.setExposureTime_ms(exposureTime_ms);
-                txStream << toml::value{{"settings", toml::table{{"exposureTime_ms", _camera.exposureTime_ms}}}} << "\n";
+                toml::value reply = toml::value{toml::table{{"settings", toml::table{{"exposureTime_ms", _camera.exposureTime_ms}}}}};
+                txStream << reply << "\n";
                 txMessage = txStream.str();
                 _link.Send(txMessage);
                 continue;
@@ -315,10 +315,11 @@ void ListenWorker(FliCamera &_camera, ZMQLink &_link)
 
             try // [settings] temperature_C = temperature_C_value
             {
-                double temperature_C = toml::find<double>(data, "settings", "temperature_C");
+                double temperature_C = data.at("settings").at("temperature_C").as_floating();
                 kato::log::cout << KATO_MAGENTA << "flicamera.h::ListenWorker() temperature_C = " << temperature_C << KATO_RESET << std::endl;
                 _camera.setTemperature_C(temperature_C);
-                txStream << toml::value{{"settings", toml::table{{"temperature_C", _camera.temperature_C}}}} << "\n";
+                toml::value reply = toml::value{toml::table{{"settings", toml::table{{"temperature_C", _camera.temperature_C}}}}};
+                txStream << reply << "\n";
                 txMessage = txStream.str();
                 _link.Send(txMessage);
                 continue;
@@ -329,10 +330,10 @@ void ListenWorker(FliCamera &_camera, ZMQLink &_link)
 
             try // [settings] gain = gain_value
             {
-                float gain = toml::find<float>(data, "settings", "gain");
+                float gain = data.at("settings").at("gain").as_floating();
                 kato::log::cout << KATO_MAGENTA << "flicamera.h::ListenWorker() gain = " << gain << KATO_RESET << std::endl;
-                // _camera.setGain(gain);
-                // txStream << toml::value{{"settings", toml::table{{"gain", _camera.gain}}}} << "\n";
+                // toml::value reply = toml::value{toml::table{{"settings", toml::table{{"gain", _camera.gain}}}}};
+                // txStream << reply << "\n";
                 txMessage = txStream.str();
                 _link.Send(txMessage);
                 continue;
@@ -343,14 +344,14 @@ void ListenWorker(FliCamera &_camera, ZMQLink &_link)
 
             try // [settings.nudge] x = amount, y = amount
             {
-                toml::table nudge_table = toml::find<toml::table>(data, "settings", "nudge");
-                int nudge_x = nudge_table["x"].as_integer();
-                int nudge_y = nudge_table["y"].as_integer();
+                int nudge_x = data.at("settings").at("nudge").at("x").as_integer();
+                int nudge_y = data.at("settings").at("nudge").at("y").as_integer();
                 testbed::FrameArea roi = _camera.roi;
                 kato::log::cout << KATO_MAGENTA << "flicamera.h::ListenWorker() nudge ROI : " << std::string(roi) << " by (x,y) = (" << nudge_x << "," << nudge_y << ")" << KATO_RESET << std::endl;
                 roi.move(nudge_x, nudge_y, _camera.full);
                 _camera.setROI(roi);
-                txStream << toml::value{{"settings", toml::table{{"roi", std::string(_camera.roi)}}}} << "\n";
+                toml::value reply = toml::value{toml::table{{"settings", toml::table{{"roi", std::string(_camera.roi)}}}}};
+                txStream << reply << "\n";
                 txMessage = txStream.str();
                 _link.Send(txMessage);
                 continue;
@@ -361,9 +362,10 @@ void ListenWorker(FliCamera &_camera, ZMQLink &_link)
 
             try // Settings = "sync"
             {
-                sync = toml::find<std::string>(data, "settings");
+                std::string sync = data.at("settings").as_string();
                 kato::log::cout << KATO_MAGENTA << "flicamera.h::ListenWorker() syncing..." << KATO_RESET << std::endl;
-                txStream << toml::value{{"settings", toml::table{{"exposureTime_ms", _camera.exposureTime_ms}, {"temperature_C", _camera.temperature_C}, {"roi", std::string(_camera.roi)}}}} << "\n";
+                toml::value reply = toml::value{toml::table{{"settings", toml::table{{"exposureTime_ms", _camera.exposureTime_ms}, {"temperature_C", _camera.temperature_C}, {"roi", std::string(_camera.roi)}}}}};
+                txStream << reply << "\n";
                 txMessage = txStream.str();
                 _link.Send(txMessage);
                 continue;
