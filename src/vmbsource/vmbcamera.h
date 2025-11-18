@@ -133,7 +133,6 @@ struct VmbCamera
         VmbSetFeatureByName(handle, "OffsetX", offsetX);
         VmbSetFeatureByName(handle, "OffsetY", offsetY);
         roi = {{offsetX, offsetY}, {offsetX + width, offsetY + height}};
-
     }
     int openStream()
     {
@@ -366,13 +365,12 @@ void SourceWorker(VmbCamera &_camera)
                 memcpy(pixels.data(), pBuffer, _camera.memory.size);
 
                 _camera.overlay<uint16_t>(ttf, "now     : " + kato::function::TimeStampString(3, "%H:%M:%S", ".", now) + "\n" +
-                                                "FRMRATE : " + std::to_string(framerate->value.numf) + "\n" +
-                                                "EXPTIME : " + std::to_string(_camera.shm_exposureTime_us->value.numl) + "\n" +
-                                                "TEMP    : " + std::to_string(_camera.shm_temperature_C->value.numf) + "\n" +
-                                                "GAIN    : " + std::to_string(_camera.shm_gain->value.numf) + "\n" +
-                                                "ROI.TL  : [" + std::to_string(_camera.shm_roi_tl_x->value.numl) + "," + std::to_string(_camera.shm_roi_tl_y->value.numl) + "]" + "\n" +
-                                                "ROI.BR  : [" + std::to_string(_camera.shm_roi_br_x->value.numl) + "," + std::to_string(_camera.shm_roi_br_y->value.numl) + "]");
-
+                                                   "FRMRATE : " + std::to_string(framerate->value.numf) + "\n" +
+                                                   "EXPTIME : " + std::to_string(_camera.shm_exposureTime_us->value.numl) + "\n" +
+                                                   "TEMP    : " + std::to_string(_camera.shm_temperature_C->value.numf) + "\n" +
+                                                   "GAIN    : " + std::to_string(_camera.shm_gain->value.numf) + "\n" +
+                                                   "ROI.TL  : [" + std::to_string(_camera.shm_roi_tl_x->value.numl) + "," + std::to_string(_camera.shm_roi_tl_y->value.numl) + "]" + "\n" +
+                                                   "ROI.BR  : [" + std::to_string(_camera.shm_roi_br_x->value.numl) + "," + std::to_string(_camera.shm_roi_br_y->value.numl) + "]");
             }
             else
             {
