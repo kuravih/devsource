@@ -1,0 +1,8 @@
+#ifndef __FLISOURCE_PATH_DEF_H__
+#define __FLISOURCE_PATH_DEF_H__
+
+#pragma once
+
+#define FLISOURCE_SRC_ROOT "@SRC_ROOT@"
+
+#endif // __FLISOURCE_PATH_DEF_H__

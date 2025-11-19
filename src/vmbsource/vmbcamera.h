@@ -10,6 +10,7 @@
 #include "kato/log.hpp"
 #include "link/zmq_link.hpp"
 #include "vmbsource_def.h"
+#include "vmbsource_path_def.h"
 #include "toml11/toml.hpp"
 
 #include <atomic>
@@ -225,7 +226,7 @@ void ListenWorker(VmbCamera &_camera, ZMQLink &_link)
         {
             // kato::log::cout << KATO_MAGENTA << "vmbcamera.h::ListenWorker() rxMessage = " << rxMessage << KATO_RESET << std::endl;
 
-            toml::value data = toml::parse(rxMessage);
+            toml::value data = toml::parse_str(rxMessage);
             std::string sync = "";
             std::ostringstream txStream;
             std::string txMessage;
@@ -318,7 +319,8 @@ void SourceWorker(VmbCamera &_camera)
     kato::log::cout << KATO_MAGENTA << "vmbcamera.h::SourceWorker() Source thread starting..." << KATO_RESET << std::endl;
     if (_camera.openStream() == 0)
     {
-        kato::TrueTypeFont ttf("../lib/kato/ProggyClean.ttf", 12);
+        kato::TrueTypeFont ttf(VMBSOURCE_SRC_ROOT "/lib/kato/ProggyClean.ttf", 12);
+
         std::chrono::system_clock::time_point now;
         shmio::SharedStorage *storage = _camera.get_storage_ptr();
         shmio::Keyword *framerate = _camera.find_keyword("FRMRATE");
@@ -362,8 +364,7 @@ void SourceWorker(VmbCamera &_camera)
             {
                 VmbUchar_t *pBuffer;
                 frame->GetImage(pBuffer);
-                memcpy(pixels.data(), pBuffer, _camera.memory.size);
-
+                memcpy(pixels.data(), pBuffer, pixels.size() * 2);
                 _camera.overlay<uint16_t>(ttf, "now     : " + kato::function::TimeStampString(3, "%H:%M:%S", ".", now) + "\n" +
                                                    "FRMRATE : " + std::to_string(framerate->value.numf) + "\n" +
                                                    "EXPTIME : " + std::to_string(_camera.shm_exposureTime_us->value.numl) + "\n" +

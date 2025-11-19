@@ -1,0 +1,8 @@
+#ifndef __STBSOURCE_PATH_DEF_H__
+#define __STBSOURCE_PATH_DEF_H__
+
+#pragma once
+
+#define STBSOURCE_SRC_ROOT "@SRC_ROOT@"
+
+#endif // __STBSOURCE_PATH_DEF_H__

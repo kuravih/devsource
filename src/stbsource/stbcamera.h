@@ -9,6 +9,7 @@
 #include "kato/log.hpp"
 #include "link/zmq_link.hpp"
 #include "stbsource_def.h"
+#include "stbsource_path_def.h"
 #include "toml11/toml.hpp"
 
 #include <atomic>
@@ -210,7 +211,8 @@ void SourceWorker(StbCamera &_camera)
     kato::log::cout << KATO_MAGENTA << "stbcamera.h::SourceWorker() Source thread starting..." << KATO_RESET << std::endl;
     if (_camera.openStream() == 0)
     {
-        kato::TrueTypeFont ttf("../lib/kato/ProggyClean.ttf", 12);
+        kato::TrueTypeFont ttf(STBSOURCE_SRC_ROOT "/lib/kato/ProggyClean.ttf", 12);
+
         std::chrono::system_clock::time_point now;
         shmio::SharedStorage *storage = _camera.get_storage_ptr();
         shmio::Keyword *framerate = _camera.find_keyword("FRMRATE");

@@ -1,0 +1,8 @@
+#ifndef __VMBSOURCE_PATH_DEF_H__
+#define __VMBSOURCE_PATH_DEF_H__
+
+#pragma once
+
+#define VMBSOURCE_SRC_ROOT "@SRC_ROOT@"
+
+#endif // __VMBSOURCE_PATH_DEF_H__
