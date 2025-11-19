@@ -63,12 +63,12 @@ struct VmbCamera
     double temperature_C;
     double gain;
     testbed::FrameArea<long> full, roi;
-    uint8_t datatype;
+    shmio::DataType datatype;
     long port;
     shmio::SharedMemory memory;
     shmio::Keyword *shm_exposureTime_us, *shm_temperature_C, *shm_roi_tl_x, *shm_roi_tl_y, *shm_roi_br_x, *shm_roi_br_y, *shm_gain;
 
-    VmbCamera(const char *_name, const char *_serial, long _port, const testbed::FrameArea<long> &_roi) : vmb(VmbCPP::VmbSystem::GetInstance()), name(_name), serial(_serial), px_max(std::pow(2, 12) - 1), exposureTime_us(100), temperature_C(20.0), gain(0.0), roi(_roi), datatype(_DATATYPE_UINT16), port(_port)
+    VmbCamera(const char *_name, const char *_serial, long _port, const testbed::FrameArea<long> &_roi) : vmb(VmbCPP::VmbSystem::GetInstance()), name(_name), serial(_serial), px_max(std::pow(2, 12) - 1), exposureTime_us(100), temperature_C(20.0), gain(0.0), roi(_roi), datatype(shmio::DataType::UINT16), port(_port)
     {
         if (VmbErrorType err = vmb.Startup(); err != VmbErrorSuccess)
             throw std::runtime_error("Could not start API, err=" + std::to_string(err));
@@ -364,7 +364,7 @@ void SourceWorker(VmbCamera &_camera)
             {
                 VmbUchar_t *pBuffer;
                 frame->GetImage(pBuffer);
-                memcpy(pixels.data(), pBuffer, pixels.size() * 2);
+                memcpy(pixels.data(), pBuffer, pixels.size() * shmio::DataTypeSize(_camera.datatype));
                 _camera.overlay<uint16_t>(ttf, "now     : " + kato::function::TimeStampString(3, "%H:%M:%S", ".", now) + "\n" +
                                                    "FRMRATE : " + std::to_string(framerate->value.numf) + "\n" +
                                                    "EXPTIME : " + std::to_string(_camera.shm_exposureTime_us->value.numl) + "\n" +

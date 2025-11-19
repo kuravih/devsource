@@ -8,6 +8,6 @@ project('devsource',
     ]
 )
 
-# subdir('flisource')
-# subdir('stbsource')
+subdir('flisource')
+subdir('stbsource')
 subdir('vmbsource')
