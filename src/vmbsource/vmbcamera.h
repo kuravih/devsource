@@ -137,7 +137,7 @@ struct VmbCamera
     }
     int openStream()
     {
-        if (testbed::create_camera_memory(memory, (serial + "_" VMBSOURCE_STREAM_STR).c_str(), full.size(), roi.size(), shmio::DataType::UINT16, serial.c_str(), px_max, port) == 0)
+        if (testbed::create_camera_memory(memory, (serial + "_" VMBSOURCE_STREAM_STR).c_str(), full.size(), roi.size(), datatype, serial.c_str(), px_max, port) == 0)
         {
             shm_exposureTime_us = find_keyword("EXPTIME");
             shm_exposureTime_us->value.numl = exposureTime_us;

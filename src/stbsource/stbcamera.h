@@ -33,7 +33,7 @@ struct StbCamera
     StbCamera(const char *_name, const char *_serial, long _port, const testbed::FrameArea<long> &_roi) : name(_name), serial(_serial), pxmax(std::pow(2, 16) - 1), exposureTime_us(1000), temperature_C(20.0), gain(0.0), full({{0, 0}, {640, 480}}), roi(_roi), datatype(shmio::DataType::UINT16), port(_port) {}
     int openStream()
     {
-        if (testbed::create_camera_memory(memory, (serial + "_" STBSOURCE_STREAM_STR).c_str(), full.size(), roi.size(), shmio::DataType::UINT16, serial.c_str(), pxmax, port) == 0)
+        if (testbed::create_camera_memory(memory, (serial + "_" STBSOURCE_STREAM_STR).c_str(), full.size(), roi.size(), datatype, serial.c_str(), pxmax, port) == 0)
         {
             shm_exposureTime_us = find_keyword("EXPTIME");
             shm_exposureTime_us->value.numl = exposureTime_us;

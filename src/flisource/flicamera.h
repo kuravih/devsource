@@ -149,7 +149,7 @@ struct FliCamera
     }
     int openStream()
     {
-        if (testbed::create_camera_memory(memory, (std::string(serial) + "_" FLISOURCE_STREAM_STR).c_str(), full.size(), roi.size(), shmio::DataType::UINT16, serial, px_max, port) == 0)
+        if (testbed::create_camera_memory(memory, (std::string(serial) + "_" FLISOURCE_STREAM_STR).c_str(), full.size(), roi.size(), datatype, serial, px_max, port) == 0)
         {
             shm_exposureTime_ms = find_keyword("EXPTIME");
             shm_exposureTime_ms->value.numl = exposureTime_ms;
