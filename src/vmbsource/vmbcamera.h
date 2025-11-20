@@ -321,7 +321,7 @@ void SourceWorker(VmbCamera &_camera)
     {
         kato::TrueTypeFont ttf(VMBSOURCE_SRC_ROOT "/lib/kato/ProggyClean.ttf", 12);
 
-        std::chrono::system_clock::time_point now;
+        std::chrono::system_clock::time_point t0, t1;
         shmio::SharedStorage *storage = _camera.get_storage_ptr();
         shmio::Keyword *framerate = _camera.find_keyword("FRMRATE");
         std::span<uint16_t> pixels = shmio::get_pixels_as<uint16_t>(_camera.memory);
@@ -343,7 +343,7 @@ void SourceWorker(VmbCamera &_camera)
         kato::log::cout << KATO_MAGENTA << "vmbcamera.h::SourceWorker() - starting ..." << KATO_RESET << std::endl;
         while (busy.load())
         {
-            now = std::chrono::system_clock::now();
+            t0 = std::chrono::system_clock::now();
 
             // ---- begin critical section ----------------------------------------------------------------------------
             pthread_mutex_lock(&storage->mutex);
@@ -358,29 +358,30 @@ void SourceWorker(VmbCamera &_camera)
             }
 
             // --------------------------------------------------------------------------------------------------------
-            framerate->value.numf = kato::function::delta_time_point_to_framerate(kato::function::timespec_to_time_point(storage->lastaccesstime), now);
-
             if (VmbErrorSuccess == _camera.handle->AcquireSingleImage(frame, 1000))
             {
+                t1 = std::chrono::system_clock::now();
+                framerate->value.numf = kato::function::delta_time_point_to_framerate(t0, t1);
+
                 VmbUchar_t *pBuffer;
                 frame->GetImage(pBuffer);
                 memcpy(pixels.data(), pBuffer, pixels.size() * shmio::DataTypeSize(_camera.datatype));
-                _camera.overlay<uint16_t>(ttf, "now     : " + kato::function::TimeStampString(3, "%H:%M:%S", ".", now) + "\n" +
+                _camera.overlay<uint16_t>(ttf, "now     : " + kato::function::TimeStampString(3, "%H:%M:%S", ".", t0) + "\n" +
                                                    "FRMRATE : " + std::to_string(framerate->value.numf) + "\n" +
                                                    "EXPTIME : " + std::to_string(_camera.shm_exposureTime_us->value.numl) + "\n" +
                                                    "TEMP    : " + std::to_string(_camera.shm_temperature_C->value.numf) + "\n" +
                                                    "GAIN    : " + std::to_string(_camera.shm_gain->value.numf) + "\n" +
                                                    "ROI.TL  : [" + std::to_string(_camera.shm_roi_tl_x->value.numl) + "," + std::to_string(_camera.shm_roi_tl_y->value.numl) + "]" + "\n" +
                                                    "ROI.BR  : [" + std::to_string(_camera.shm_roi_br_x->value.numl) + "," + std::to_string(_camera.shm_roi_br_y->value.numl) + "]");
+
+                storage->lastaccesstime = kato::function::time_point_to_timespec(t1);
+
+                kato::log::cout << KATO_MAGENTA << "vmbcamera.h::SourceWorker() - framerate = " << std::scientific << std::setprecision(5) << framerate->value.numf << KATO_RESET << std::flush;
             }
             else
             {
                 kato::log::cout << KATO_RED << "vmbcamera.h::SourceWorker() AcquireSingleImage() failed" << KATO_RESET << std::endl;
             }
-
-            storage->lastaccesstime = kato::function::time_point_to_timespec(now);
-
-            kato::log::cout << KATO_MAGENTA << "vmbcamera.h::SourceWorker() - framerate = " << std::scientific << std::setprecision(5) << framerate->value.numf << KATO_RESET << std::flush;
             // --------------------------------------------------------------------------------------------------------
 
             storage->ready_flag = true;
