@@ -294,17 +294,19 @@ void ListenWorker(FliCamera &_camera, ZMQLink &_link)
         {
             // kato::log::cout << KATO_MAGENTA << "flicamera.h::ListenWorker() rxMessage = " << rxMessage << KATO_RESET << std::endl;
 
-            toml::value data = toml::parse(rxMessage);
+            toml::value data = toml::parse_str(rxMessage);
             std::string sync = "";
             std::ostringstream txStream;
             std::string txMessage;
 
             try // [settings] exposureTime_ms = exposureTime_ms_value
             {
-                long exposureTime_ms = data.at("settings").at("exposureTime_ms").as_integer();
+                long exposureTime_us = data.at("settings").at("exposureTime_us").as_integer();
+                long exposureTime_ms = static_cast<int>(std::round(exposureTime_us / 1000.0));
                 kato::log::cout << KATO_MAGENTA << "flicamera.h::ListenWorker() exposureTime_ms = " << exposureTime_ms << KATO_RESET << std::endl;
                 _camera.setExposureTime_ms(exposureTime_ms);
-                toml::value reply = toml::value{toml::table{{"settings", toml::table{{"exposureTime_ms", _camera.exposureTime_ms}}}}};
+                exposureTime_us = _camera.exposureTime_ms*1000;
+                toml::value reply = toml::value{toml::table{{"settings", toml::table{{"exposureTime_us", exposureTime_us}}}}};
                 txStream << reply << "\n";
                 txMessage = txStream.str();
                 _link.Send(txMessage);
@@ -427,13 +429,13 @@ void SourceWorker(FliCamera &_camera)
             _camera.grabFrame(pixels);
             t1 = std::chrono::system_clock::now();
             framerate->value.numf = kato::function::delta_time_point_to_framerate(t0, t1);
-            _camera.overlay<uint16_t>(ttf, "now     : " + kato::function::TimeStampString(3, "%H:%M:%S", ".", t0) + "\n" +
-                                               "FRMRATE : " + std::to_string(framerate->value.numf) + "\n" +
-                                               "EXPTIME : " + std::to_string(_camera.shm_exposureTime_ms->value.numl) + "\n" +
-                                               "TEMP    : " + std::to_string(_camera.shm_temperature_C->value.numf) + "\n" +
-                                               "GAIN    : " + std::to_string(_camera.shm_gain->value.numf) + "\n" +
-                                               "ROI.TL  : [" + std::to_string(_camera.shm_roi_tl_x->value.numl) + "," + std::to_string(_camera.shm_roi_tl_y->value.numl) + "]" + "\n" +
-                                               "ROI.BR  : [" + std::to_string(_camera.shm_roi_br_x->value.numl) + "," + std::to_string(_camera.shm_roi_br_y->value.numl) + "]");
+            // _camera.overlay<uint16_t>(ttf, "now     : " + kato::function::TimeStampString(3, "%H:%M:%S", ".", t0) + "\n" +
+            //                                    "FRMRATE : " + std::to_string(framerate->value.numf) + "\n" +
+            //                                    "EXPTIME : " + std::to_string(_camera.shm_exposureTime_ms->value.numl) + "\n" +
+            //                                    "TEMP    : " + std::to_string(_camera.shm_temperature_C->value.numf) + "\n" +
+            //                                    "GAIN    : " + std::to_string(_camera.shm_gain->value.numf) + "\n" +
+            //                                    "ROI.TL  : [" + std::to_string(_camera.shm_roi_tl_x->value.numl) + "," + std::to_string(_camera.shm_roi_tl_y->value.numl) + "]" + "\n" +
+            //                                    "ROI.BR  : [" + std::to_string(_camera.shm_roi_br_x->value.numl) + "," + std::to_string(_camera.shm_roi_br_y->value.numl) + "]");
 
             storage->lastaccesstime = kato::function::time_point_to_timespec(t1);
 
