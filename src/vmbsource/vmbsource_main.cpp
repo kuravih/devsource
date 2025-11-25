@@ -33,7 +33,8 @@ int main()
             kato::log::cout << KATO_GREEN << "vmbsource_main.cpp::" << "main() " << "Camera : [id : " << camInfo.id << ", serial : " << camInfo.serial << "]" << KATO_RESET << std::endl;
     }
 
-    testbed::FrameArea<long> roi = {{256 - 128, 256 - 128}, {256 + 128, 256 + 128}};
+    long OffsetX = 656, OffsetY = 32;
+    testbed::FrameArea<long> roi = {{OffsetX, OffsetY}, {OffsetX + 512, OffsetY + 512}};
     VmbCamera camera(camInfos[0].id.c_str(), camInfos[0].serial.c_str(), port, roi);
 
     ZMQLink link(camera.port);
