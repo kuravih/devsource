@@ -238,14 +238,8 @@ void SourceWorker(StbCamera &_camera)
             // ---- begin critical section ----------------------------------------------------------------------------
             pthread_mutex_lock(&storage->mutex);
 
-            while (!storage->request_flag && !storage->terminate) // Wait until compute marks it ready (or termination)
+            while (!storage->request_flag) // Wait until compute marks it ready (or termination)
                 pthread_cond_wait(&storage->request_cond, &storage->mutex);
-
-            if (storage->terminate) // terminate requested
-            {
-                pthread_mutex_unlock(&storage->mutex);
-                break;
-            }
 
             // --------------------------------------------------------------------------------------------------------
             _camera.exposeFrame<uint16_t>();
@@ -269,7 +263,6 @@ void SourceWorker(StbCamera &_camera)
         // ---- begin critical section --------------------------------------------------------------------------------
         // Terminate shared state cleanly
         pthread_mutex_lock(&storage->mutex);
-        storage->terminate = true;
         pthread_cond_broadcast(&storage->ready_cond);
         pthread_cond_broadcast(&storage->request_cond);
         pthread_mutex_unlock(&storage->mutex);
