@@ -146,6 +146,9 @@ struct FliCamera
         setVBinning(FliBinning::B_1X);
         setHBinning(FliBinning::B_1X);
         setNFlushes(FliFlush::F_1X);
+        kato::log::cout << KATO_MAGENTA << "flicamera.h::FliCamera() roi = " << std::string(roi) << KATO_RESET << std::endl;
+        kato::log::cout << KATO_MAGENTA << "flicamera.h::FliCamera() exposureTime_ms = " << exposureTime_ms << KATO_RESET << std::endl;
+        kato::log::cout << KATO_MAGENTA << "flicamera.h::FliCamera() temperature_C = " << temperature_C << KATO_RESET << std::endl;
     }
     int openStream()
     {

@@ -33,7 +33,7 @@ int main()
             kato::log::cout << KATO_GREEN << "flistream_main.cpp::main() Camera : [dev : " << camInfo.dev << ", model : " << camInfo.model << ", serial : " << camInfo.serial << "]" << KATO_RESET << std::endl;
     }
 
-    long OffsetX = 994, OffsetY = 720;
+    long OffsetX = 1044, OffsetY = 492; // get the values from the dashboard. in the dashboard it shows up as [(OffsetX + 256, OffsetY + 256),(OffsetX,OffsetY)]
     testbed::FrameArea<long> roi = {{OffsetX, OffsetY}, {OffsetX + 256, OffsetY + 256}};
     FliCamera camera(camInfos[0].dev, camInfos[0].model, camInfos[0].serial, port, roi);
 
