@@ -1,3 +1,5 @@
+threads_dep = dependency('threads')
+zmq_dep = dependency('libzmq', required: true)
 libusb10_dep = dependency('libusb-1.0')
 
 conf = configure_file(
@@ -25,7 +27,7 @@ executable(
     include_directories : [
         lib_include
     ],
-    dependencies : [libusb10_dep],
+    dependencies : [libusb10_dep, threads_dep, zmq_dep],
     cpp_args : [
         '-Wall',
         '-Wextra',
@@ -33,6 +35,6 @@ executable(
         '-Wformat',
         '-O3'
     ],
-    link_args : [libfliusb_a_path, '-lpthread', '-lzmq'],
+    link_args : [libfliusb_a_path],
     install : false
 )

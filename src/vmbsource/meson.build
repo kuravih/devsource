@@ -1,4 +1,10 @@
+threads_dep = dependency('threads')
+zmq_dep = dependency('libzmq', required: true)
+
 lib_include = include_directories('../lib')
+
+cc = meson.get_compiler('cpp')
+vmbcpp_dep = cc.find_library('VmbCPP', required: true)
 
 conf = configure_file(
     input: 'vmbsource_path_def.h.in',
@@ -14,6 +20,7 @@ executable(
     include_directories : [
         lib_include
     ],
+    dependencies : [threads_dep, zmq_dep, vmbcpp_dep],
     cpp_args : [
         '-Wall',
         '-Wextra',
@@ -21,6 +28,5 @@ executable(
         '-Wformat',
         '-O3'
     ],
-    link_args : ['-lVmbCPP', '-lpthread', '-lzmq'],
     install : false
 )
