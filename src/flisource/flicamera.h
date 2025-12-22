@@ -415,10 +415,10 @@ void SourceWorker(FliCamera &_camera)
         {
             t0 = std::chrono::system_clock::now();
 
-            // ---- begin critical section ----------------------------------------------------------------------------
+            // ==== begin critical section ============================================================================
             pthread_mutex_lock(&storage->mutex);
 
-            while (!storage->request_flag) // Wait until compute marks it ready
+            while (!storage->request_flag) // wait for request
                 pthread_cond_wait(&storage->request_cond, &storage->mutex);
 
             // --------------------------------------------------------------------------------------------------------
@@ -439,23 +439,23 @@ void SourceWorker(FliCamera &_camera)
             kato::log::cout << KATO_MAGENTA << "flicamera.h::SourceWorker() - framerate = " << std::scientific << std::setprecision(5) << framerate->value.numf << KATO_RESET << std::flush;
             // --------------------------------------------------------------------------------------------------------
 
-            storage->ready_flag = true;
-            storage->request_flag = false; // Clear ready for next cycle
+            storage->ready_flag = true; // frame produced, mark as ready
+            storage->request_flag = false; // clear as request fulfilled
 
             pthread_cond_signal(&storage->ready_cond);
             pthread_mutex_unlock(&storage->mutex);
-            // ---- end critical section ------------------------------------------------------------------------------
+            // ==== end critical section ==============================================================================
 
             std::cout << "\r\33[2K";
         }
 
-        // ---- begin critical section --------------------------------------------------------------------------------
+        // ==== begin critical section ================================================================================
         // Terminate shared state cleanly
         pthread_mutex_lock(&storage->mutex);
         pthread_cond_broadcast(&storage->ready_cond);
         pthread_cond_broadcast(&storage->request_cond);
         pthread_mutex_unlock(&storage->mutex);
-        // ---- end critical section ----------------------------------------------------------------------------------
+        // ==== end critical section ==================================================================================
 
         kato::log::cout << KATO_MAGENTA << "flicamera.h::SourceWorker() - stop ..." << KATO_RESET << std::endl;
 
