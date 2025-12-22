@@ -251,7 +251,7 @@ void SourceWorker(StbCamera &_camera)
             // --------------------------------------------------------------------------------------------------------
 
             storage->ready_flag = true; // frame produced, mark as ready
-            storage->request_flag = false; // clear as request fulfilled
+            storage->request_flag = false; // mark as request fulfilled
 
             pthread_cond_signal(&storage->ready_cond);
             pthread_mutex_unlock(&storage->mutex);
