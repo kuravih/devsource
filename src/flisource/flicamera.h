@@ -308,7 +308,7 @@ void ListenWorker(FliCamera &_camera, ZMQLink &_link)
                 long exposureTime_ms = static_cast<int>(std::round(exposureTime_us / 1000.0));
                 kato::log::cout << KATO_MAGENTA << "flicamera.h::ListenWorker() exposureTime_ms = " << exposureTime_ms << KATO_RESET << std::endl;
                 _camera.setExposureTime_ms(exposureTime_ms);
-                exposureTime_us = _camera.exposureTime_ms*1000;
+                exposureTime_us = _camera.exposureTime_ms * 1000;
                 toml::value reply = toml::value{toml::table{{"settings", toml::table{{"exposureTime_us", exposureTime_us}}}}};
                 txStream << reply << "\n";
                 txMessage = txStream.str();

@@ -10,7 +10,9 @@ conf = configure_file(
     }
 )
 
-libfliusb_path = '../lib/libfliusb'
+lib_path = '../lib'
+
+libfliusb_path = lib_path + '/libfliusb'
 libfliusb_a = 'libfliusb.a' 
 libfliusb_a_path = libfliusb_path + '/' + libfliusb_a
 libfliusb_build = custom_target(
@@ -20,21 +22,16 @@ libfliusb_build = custom_target(
     build_always_stale : true
 )
 
-lib_include = include_directories('../lib')
+lib_inc = include_directories(lib_path)
 executable(
     'flisource',
     ['flisource_main.cpp', conf],
-    include_directories : [
-        lib_include
+    include_directories : lib_inc,
+    dependencies : [
+        libusb10_dep,
+        threads_dep,
+        zmq_dep
     ],
-    dependencies : [libusb10_dep, threads_dep, zmq_dep],
-    cpp_args : [
-        '-Wall',
-        '-Wextra',
-        '-Wunused',
-        '-Wformat',
-        '-O3'
-    ],
-    link_args : [libfliusb_a_path],
+    link_args : libfliusb_a_path,
     install : false
 )
