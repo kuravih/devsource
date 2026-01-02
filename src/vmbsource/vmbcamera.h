@@ -346,7 +346,7 @@ void SourceWorker(VmbCamera &_camera)
             t0 = std::chrono::system_clock::now();
 
             // ==== begin critical section ============================================================================
-            shmio::producer_wait_for_request(storage);
+            shmio::wait_for_request(storage);
 
             // --------------------------------------------------------------------------------------------------------
             if (VmbErrorSuccess == _camera.handle->AcquireSingleImage(frame, 1000))
@@ -367,7 +367,7 @@ void SourceWorker(VmbCamera &_camera)
             }
             // --------------------------------------------------------------------------------------------------------
 
-            shmio::producer_request_done(storage);
+            shmio::post_response(storage);
             // ==== end critical section ==============================================================================
 
             std::cout << "\r\33[2K";
@@ -376,8 +376,8 @@ void SourceWorker(VmbCamera &_camera)
         // ==== begin critical section ================================================================================
         // Terminate shared state cleanly
         pthread_mutex_lock(&storage->mutex);
-        pthread_cond_broadcast(&storage->ready_cond);
-        pthread_cond_broadcast(&storage->request_cond);
+        pthread_cond_broadcast(&storage->has_request_cond);
+        pthread_cond_broadcast(&storage->has_response_cond);
         pthread_mutex_unlock(&storage->mutex);
         // ==== end critical section ==================================================================================
 

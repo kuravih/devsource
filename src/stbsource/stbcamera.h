@@ -236,7 +236,7 @@ void SourceWorker(StbCamera &_camera)
             t0 = std::chrono::system_clock::now();
 
             // ==== begin critical section ============================================================================
-            shmio::producer_wait_for_request(storage);
+            shmio::wait_for_request(storage);
 
             // --------------------------------------------------------------------------------------------------------
             _camera.exposeFrame<uint16_t>();
@@ -247,7 +247,7 @@ void SourceWorker(StbCamera &_camera)
             kato::log::cout << KATO_MAGENTA << "stbcamera.h::SourceWorker() - framerate = " << std::scientific << std::setprecision(5) << framerate->value.numf << KATO_RESET << std::flush;
             // --------------------------------------------------------------------------------------------------------
 
-            shmio::producer_request_done(storage);
+            shmio::post_response(storage);
             // ==== end critical section ==============================================================================
 
             std::cout << "\r\33[2K";
@@ -256,8 +256,8 @@ void SourceWorker(StbCamera &_camera)
         // ==== begin critical section ================================================================================
         // Terminate shared state cleanly
         pthread_mutex_lock(&storage->mutex);
-        pthread_cond_broadcast(&storage->ready_cond);
-        pthread_cond_broadcast(&storage->request_cond);
+        pthread_cond_broadcast(&storage->has_request_cond);
+        pthread_cond_broadcast(&storage->has_response_cond);
         pthread_mutex_unlock(&storage->mutex);
         // ==== end critical section ==================================================================================
 
