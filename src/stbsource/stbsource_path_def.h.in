@@ -4,5 +4,6 @@
 #pragma once
 
 #define STBSOURCE_SRC_ROOT "@SRC_ROOT@"
+#define KATO_DIR "@LIB_KATO_DIR@"
 
 #endif // __STBSOURCE_PATH_DEF_H__

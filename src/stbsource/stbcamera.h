@@ -11,6 +11,7 @@
 #include "stbsource_def.h"
 #include "stbsource_path_def.h"
 #include "toml11/toml.hpp"
+#include "stbsource_path_def.h"
 
 #include <atomic>
 
@@ -20,25 +21,27 @@ volatile std::atomic<bool> busy{true};
 struct StbCamera
 {
     std::string name, serial;
-    long pxmax;
-    long exposureTime_us;
+    double px_max;
+    double exposureTime_s;
     double temperature_C;
-    float gain;
+    double gain;
     testbed::FrameArea<long> full, roi;
     shmio::DataType datatype;
     long port;
     shmio::SharedMemory memory;
-    shmio::Keyword *shm_exposureTime_us, *shm_temperature_C, *shm_roi_tl_x, *shm_roi_tl_y, *shm_roi_br_x, *shm_roi_br_y, *shm_gain;
+    shmio::Keyword *shm_exposureTime_s, *shm_temperature_C, *shm_roi_tl_x, *shm_roi_tl_y, *shm_roi_br_x, *shm_roi_br_y, *shm_gain;
 
-    StbCamera(const char *_name, const char *_serial, long _port, const testbed::FrameArea<long> &_roi) : name(_name), serial(_serial), pxmax(std::pow(2, 16) - 1), exposureTime_us(1000), temperature_C(20.0), gain(0.0), full({{0, 0}, {640, 480}}), roi(_roi), datatype(shmio::DataType::UINT16), port(_port) {}
+    StbCamera(const char *_name, const char *_serial, long _port, const testbed::FrameArea<long> &_roi) : name(_name), serial(_serial), px_max(std::pow(2, 16) - 1), exposureTime_s(0.001), temperature_C(20.0), gain(0.0), full({{0, 0}, {640, 480}}), roi(_roi), datatype(shmio::DataType::UINT16), port(_port) {}
     int openStream()
     {
-        if (testbed::create_camera_memory(memory, (serial + "_" STBSOURCE_STREAM_STR).c_str(), full.size(), roi.size(), datatype, serial.c_str(), pxmax, port) == 0)
+        if (testbed::create_camera_memory(memory, (serial + "_" STBSOURCE_STREAM_STR).c_str(), full.size(), roi.size(), datatype, serial.c_str(), px_max, port) == 0)
         {
-            shm_exposureTime_us = find_keyword("EXPTIME");
-            shm_exposureTime_us->value.numl = exposureTime_us;
+            shm_exposureTime_s = find_keyword("EXPTIME");
+            shm_exposureTime_s->value.numf = exposureTime_s;
             shm_temperature_C = find_keyword("TEMP");
             shm_temperature_C->value.numf = temperature_C;
+            shm_gain = find_keyword("GAIN");
+            shm_gain->value.numf = gain;
             shm_roi_tl_x = find_keyword("ROI.TL.X");
             shm_roi_tl_y = find_keyword("ROI.TL.Y");
             shm_roi_br_x = find_keyword("ROI.BR.X");
@@ -47,8 +50,6 @@ struct StbCamera
             shm_roi_tl_y->value.numl = roi.tl.y;
             shm_roi_br_x->value.numl = roi.br.x;
             shm_roi_br_y->value.numl = roi.br.y;
-            shm_gain = find_keyword("GAIN");
-            shm_gain->value.numf = gain;
             return 0;
         }
         return -1;
@@ -75,21 +76,25 @@ struct StbCamera
     {
         std::span<Type> pixels = get_pixels_as<Type>();
         std::fill(pixels.begin(), pixels.end(), 0);
-        std::this_thread::sleep_for(std::chrono::microseconds(exposureTime_us));
+        std::this_thread::sleep_for(std::chrono::duration<double>(exposureTime_s));
     }
     template <typename Type>
     void overlay(kato::TrueTypeFont &_ttf, const std::string &_text)
     {
         std::span<Type> pixels = get_pixels_as<Type>();
-        _ttf.renderText(pixels.data(), roi.size().width, roi.size().height, 10, 10, _text, pxmax, pxmax);
+        _ttf.renderText(pixels.data(), roi.size().width, roi.size().height, 10, 10, _text, px_max, px_max);
     }
-    void setExposureTime_us(long _exposureTime_us)
+    void setExposureTime_s(const double &_exposureTime_s)
     {
-        shm_exposureTime_us->value.numl = exposureTime_us = _exposureTime_us;
+        shm_exposureTime_s->value.numf = exposureTime_s = _exposureTime_s;
     }
-    void setTemperature_C(double _temperature_C)
+    void setTemperature_C(const double &_temperature_C)
     {
         shm_temperature_C->value.numf = temperature_C = _temperature_C;
+    }
+    void setGain(const double &_gain)
+    {
+        shm_gain->value.numf = gain = _gain;
     }
     void setROI(const testbed::FrameArea<long> &_roi)
     {
@@ -97,10 +102,6 @@ struct StbCamera
         shm_roi_tl_y->value.numl = roi.tl.y = _roi.tl.y;
         shm_roi_br_x->value.numl = roi.br.x = _roi.br.x;
         shm_roi_br_y->value.numl = roi.br.y = _roi.br.y;
-    }
-    void setGain(float _gain)
-    {
-        shm_gain->value.numf = gain = _gain;
     }
     ~StbCamera() = default;
 };
@@ -123,12 +124,12 @@ void ListenWorker(StbCamera &_camera, ZMQLink &_link)
             std::ostringstream txStream;
             std::string txMessage;
 
-            try // [settings] exposureTime_us = exposureTime_us_value
+            try // [settings] exposureTime_s = exposureTime_s_value
             {
-                long exposureTime_us = data.at("settings").at("exposureTime_us").as_integer();
-                kato::log::cout << KATO_MAGENTA << "stbcamera.h::ListenWorker() exposureTime_us = " << exposureTime_us << KATO_RESET << std::endl;
-                _camera.setExposureTime_us(exposureTime_us);
-                toml::value reply = toml::value{toml::table{{"settings", toml::table{{"exposureTime_us", _camera.exposureTime_us}}}}};
+                double exposureTime_s = data.at("settings").at("exposureTime_s").as_floating();
+                kato::log::cout << KATO_MAGENTA << "stbcamera.h::ListenWorker() exposureTime_s = " << exposureTime_s << KATO_RESET << std::endl;
+                _camera.setExposureTime_s(exposureTime_s);
+                toml::value reply = toml::value{toml::table{{"settings", toml::table{{"exposureTime_s", _camera.exposureTime_s}}}}};
                 txStream << reply << "\n";
                 txMessage = txStream.str();
                 _link.Send(txMessage);
@@ -190,8 +191,8 @@ void ListenWorker(StbCamera &_camera, ZMQLink &_link)
             {
                 std::string sync = data.at("settings").as_string();
                 kato::log::cout << KATO_MAGENTA << "stbcamera.h::ListenWorker() syncing..." << KATO_RESET << std::endl;
-                txStream << toml::value{{"settings", toml::table{{"exposureTime_us", _camera.exposureTime_us}, {"temperature_C", _camera.temperature_C}, {"gain", _camera.gain}, {"roi", std::string(_camera.roi)}}}} << "\n";
-                toml::value reply = toml::value{toml::table{{"settings", toml::table{{"exposureTime_us", _camera.exposureTime_us}, {"temperature_C", _camera.temperature_C}, {"roi", std::string(_camera.roi)}}}}};
+                txStream << toml::value{{"settings", toml::table{{"exposureTime_s", _camera.exposureTime_s}, {"temperature_C", _camera.temperature_C}, {"gain", _camera.gain}, {"roi", std::string(_camera.roi)}}}} << "\n";
+                toml::value reply = toml::value{toml::table{{"settings", toml::table{{"exposureTime_s", _camera.exposureTime_s}, {"temperature_C", _camera.temperature_C}, {"roi", std::string(_camera.roi)}}}}};
                 txStream << reply << "\n";
                 _link.Send(txMessage);
                 continue;
@@ -211,13 +212,13 @@ void SourceWorker(StbCamera &_camera)
     kato::log::cout << KATO_MAGENTA << "stbcamera.h::SourceWorker() Source thread starting..." << KATO_RESET << std::endl;
     if (_camera.openStream() == 0)
     {
-        kato::TrueTypeFont ttf(STBSOURCE_SRC_ROOT "/lib/kato/ProggyClean.ttf", 12);
+        kato::TrueTypeFont ttf(KATO_DIR "/ProggyClean.ttf", 12);
 
         std::chrono::system_clock::time_point t0, t1;
         shmio::SharedStorage *storage = _camera.get_storage_ptr();
         shmio::Keyword *framerate = _camera.find_keyword("FRMRATE");
         std::span<uint16_t> pixels = shmio::get_pixels_as<uint16_t>(_camera.memory);
-        _camera.shm_exposureTime_us = _camera.find_keyword("EXPTIME");
+        _camera.shm_exposureTime_s = _camera.find_keyword("EXPTIME");
         _camera.shm_temperature_C = _camera.find_keyword("TEMP");
         _camera.shm_gain = _camera.find_keyword("GAIN");
         _camera.shm_roi_tl_x = _camera.find_keyword("ROI.TL.X");
@@ -243,6 +244,14 @@ void SourceWorker(StbCamera &_camera)
             t1 = std::chrono::system_clock::now();
             framerate->value.numf = kato::function::delta_time_point_to_framerate(t0, t1);
             storage->lastaccesstime = kato::function::time_point_to_timespec(t1);
+
+            _camera.overlay<uint16_t>(ttf, "now     : " + kato::function::TimeStampString(3, "%H:%M:%S", ".", t0) + "\n" +
+                                           "FRMRATE : " + std::to_string(framerate->value.numf) + "\n" +
+                                           "EXPTIME : " + std::to_string(_camera.shm_exposureTime_s->value.numf) + "\n" +
+                                           "TEMP    : " + std::to_string(_camera.shm_temperature_C->value.numf) + "\n" +
+                                           "GAIN    : " + std::to_string(_camera.shm_gain->value.numf) + "\n" +
+                                           "ROI.TL  : [" + std::to_string(_camera.shm_roi_tl_x->value.numl) + "," + std::to_string(_camera.shm_roi_tl_y->value.numl) + "]" + "\n" +
+                                           "ROI.BR  : [" + std::to_string(_camera.shm_roi_br_x->value.numl) + "," + std::to_string(_camera.shm_roi_br_y->value.numl) + "]");
 
             kato::log::cout << KATO_MAGENTA << "stbcamera.h::SourceWorker() - framerate = " << std::scientific << std::setprecision(5) << framerate->value.numf << KATO_RESET << std::flush;
             // --------------------------------------------------------------------------------------------------------

@@ -100,18 +100,18 @@ struct FliCamera
 {
     flidev_t handle;
     char dev[16], model[16], serial[16];
-    long px_max;
-    long exposureTime_ms;
+    double px_max;
+    double exposureTime_s;
     double temperature_C;
     long hwrev, fwrev;
     double pxw, pxh;
-    testbed::FrameArea<long> full, roi;
+    testbed::FrameArea<long> full, roi, visible;
     shmio::DataType datatype;
     long port;
     shmio::SharedMemory memory;
-    shmio::Keyword *shm_exposureTime_ms, *shm_temperature_C, *shm_roi_tl_x, *shm_roi_tl_y, *shm_roi_br_x, *shm_roi_br_y, *shm_gain;
+    shmio::Keyword *shm_exposureTime_s, *shm_temperature_C, *shm_roi_tl_x, *shm_roi_tl_y, *shm_roi_br_x, *shm_roi_br_y, *shm_gain;
 
-    FliCamera(const char *_dev, const char *_model, const char *_serial, long _port, const testbed::FrameArea<long> &_roi) : px_max(std::pow(2, 12) - 1), exposureTime_ms(1), temperature_C(20.0), roi(_roi), datatype(shmio::DataType::UINT16), port(_port)
+    FliCamera(const char *_dev, const char *_model, const char *_serial, long _port, const testbed::FrameArea<long> &_roi) : px_max(std::pow(2, 12) - 1), exposureTime_s(0.001), temperature_C(20.0), roi(_roi), datatype(shmio::DataType::UINT16), port(_port)
     {
         strncpy(dev, _dev, sizeof(dev) - 1);
         strncpy(model, _model, sizeof(model) - 1);
@@ -127,17 +127,11 @@ struct FliCamera
             throw FliException(error);
         if (LIBFLIAPI error = FLIGetArrayArea(handle, &full.tl.x, &full.tl.y, &full.br.x, &full.br.y))
             throw FliException(error);
-        // if (LIBFLIAPI error = FLIGetVisibleArea(handle, &roi.tl.x, &roi.tl.y, &roi.br.x, &roi.br.y))
-        //     throw FliException(error);
-
-        // long long offsetX = _roi.tl.x, offsetY = _roi.tl.y, width = _roi.size().width, height = _roi.size().height;
-        if (LIBFLIAPI error = FLISetImageArea(handle, _roi.tl.x, _roi.tl.y, _roi.br.x, _roi.br.y))
+        if (LIBFLIAPI error = FLIGetVisibleArea(handle, &visible.tl.x, &visible.tl.y, &visible.br.x, &visible.br.y))
             throw FliException(error);
-        // shm_roi_tl_x->value.numl = roi.tl.x = offsetX;
-        // shm_roi_tl_y->value.numl = roi.tl.y = offsetY;
-        // shm_roi_br_x->value.numl = roi.br.x = offsetX + width;
-        // shm_roi_br_y->value.numl = roi.br.y = offsetY + height;
-
+        if (LIBFLIAPI error = FLISetImageArea(handle, roi.tl.x, roi.tl.y, roi.br.x, roi.br.y))
+            throw FliException(error);
+        long exposureTime_ms = (long)(exposureTime_s * 1000);
         if (LIBFLIAPI error = FLISetExposureTime(handle, exposureTime_ms))
             throw FliException(error);
         if (LIBFLIAPI error = FLISetTemperature(handle, temperature_C))
@@ -146,16 +140,18 @@ struct FliCamera
         setVBinning(FliBinning::B_1X);
         setHBinning(FliBinning::B_1X);
         setNFlushes(FliFlush::F_1X);
+        kato::log::cout << KATO_MAGENTA << "flicamera.h::FliCamera() full = " << std::string(full) << KATO_RESET << std::endl;
+        kato::log::cout << KATO_MAGENTA << "flicamera.h::FliCamera() visible = " << std::string(visible) << KATO_RESET << std::endl;
         kato::log::cout << KATO_MAGENTA << "flicamera.h::FliCamera() roi = " << std::string(roi) << KATO_RESET << std::endl;
-        kato::log::cout << KATO_MAGENTA << "flicamera.h::FliCamera() exposureTime_ms = " << exposureTime_ms << KATO_RESET << std::endl;
+        kato::log::cout << KATO_MAGENTA << "flicamera.h::FliCamera() exposureTime_s = " << exposureTime_s << KATO_RESET << std::endl;
         kato::log::cout << KATO_MAGENTA << "flicamera.h::FliCamera() temperature_C = " << temperature_C << KATO_RESET << std::endl;
     }
     int openStream()
     {
         if (testbed::create_camera_memory(memory, (std::string(serial) + "_" FLISOURCE_STREAM_STR).c_str(), full.size(), roi.size(), datatype, serial, px_max, port) == 0)
         {
-            shm_exposureTime_ms = find_keyword("EXPTIME");
-            shm_exposureTime_ms->value.numl = exposureTime_ms;
+            shm_exposureTime_s = find_keyword("EXPTIME");
+            shm_exposureTime_s->value.numf = exposureTime_s;
             shm_temperature_C = find_keyword("TEMP");
             shm_temperature_C->value.numf = temperature_C;
             shm_roi_tl_x = find_keyword("ROI.TL.X");
@@ -193,13 +189,14 @@ struct FliCamera
         std::span<Type> pixels = get_pixels_as<Type>();
         _ttf.renderText(pixels.data(), roi.size().width, roi.size().height, 10, 10, _text, px_max, px_max);
     }
-    void setExposureTime_ms(const double &_exposureTime_ms)
+    void setExposureTime_s(const double &_exposureTime_s)
     {
-        shm_exposureTime_ms->value.numl = exposureTime_ms = _exposureTime_ms;
-        if (LIBFLIAPI error = FLISetExposureTime(handle, _exposureTime_ms))
+        shm_exposureTime_s->value.numf = exposureTime_s = _exposureTime_s;
+        long exposureTime_ms = (long)(exposureTime_s * 1000);
+        if (LIBFLIAPI error = FLISetExposureTime(handle, exposureTime_ms))
             throw FliException(error);
     }
-    void setTemperature_C(double _temperature_C)
+    void setTemperature_C(const double &_temperature_C)
     {
         shm_temperature_C->value.numf = temperature_C = _temperature_C;
         if (LIBFLIAPI error = FLISetTemperature(handle, (double)_temperature_C))
@@ -233,7 +230,7 @@ struct FliCamera
     }
     void setROI(const testbed::FrameArea<long> &_roi)
     {
-        long long offsetX = _roi.tl.x, offsetY = _roi.tl.y, width = _roi.size().width, height = _roi.size().height;
+        long offsetX = _roi.tl.x, offsetY = _roi.tl.y, width = _roi.size().width, height = _roi.size().height;
         if (LIBFLIAPI error = FLISetImageArea(handle, _roi.tl.x, _roi.tl.y, _roi.br.x, _roi.br.y))
             throw FliException(error);
         shm_roi_tl_x->value.numl = roi.tl.x = offsetX;
@@ -257,7 +254,7 @@ struct FliCamera
     {
         if (LIBFLIAPI error = FLIExposeFrame(handle))
             throw FliException(error);
-        long remExpTime_ms = exposureTime_ms;
+        long remExpTime_ms = (long)(exposureTime_s*1000);
         while (true)
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -302,14 +299,13 @@ void ListenWorker(FliCamera &_camera, ZMQLink &_link)
             std::ostringstream txStream;
             std::string txMessage;
 
-            try // [settings] exposureTime_ms = exposureTime_ms_value
+            try // [settings] exposureTime_s = exposureTime_s_value
             {
-                long exposureTime_us = data.at("settings").at("exposureTime_us").as_integer();
-                long exposureTime_ms = static_cast<int>(std::round(exposureTime_us / 1000.0));
-                kato::log::cout << KATO_MAGENTA << "flicamera.h::ListenWorker() exposureTime_ms = " << exposureTime_ms << KATO_RESET << std::endl;
-                _camera.setExposureTime_ms(exposureTime_ms);
-                exposureTime_us = _camera.exposureTime_ms * 1000;
-                toml::value reply = toml::value{toml::table{{"settings", toml::table{{"exposureTime_us", exposureTime_us}}}}};
+                double exposureTime_s = data.at("settings").at("exposureTime_s").as_floating();
+                kato::log::cout << KATO_MAGENTA << "flicamera.h::ListenWorker() exposureTime_s = " << exposureTime_s << KATO_RESET << std::endl;
+                _camera.setExposureTime_s(exposureTime_s);
+                exposureTime_s = _camera.exposureTime_s;
+                toml::value reply = toml::value{toml::table{{"settings", toml::table{{"exposureTime_s", exposureTime_s}}}}};
                 txStream << reply << "\n";
                 txMessage = txStream.str();
                 _link.Send(txMessage);
@@ -336,7 +332,7 @@ void ListenWorker(FliCamera &_camera, ZMQLink &_link)
 
             try // [settings] gain = gain_value
             {
-                float gain = data.at("settings").at("gain").as_floating();
+                double gain = data.at("settings").at("gain").as_floating();
                 kato::log::cout << KATO_MAGENTA << "flicamera.h::ListenWorker() gain = " << gain << KATO_RESET << std::endl;
                 // toml::value reply = toml::value{toml::table{{"settings", toml::table{{"gain", _camera.gain}}}}};
                 // txStream << reply << "\n";
@@ -370,7 +366,7 @@ void ListenWorker(FliCamera &_camera, ZMQLink &_link)
             {
                 std::string sync = data.at("settings").as_string();
                 kato::log::cout << KATO_MAGENTA << "flicamera.h::ListenWorker() syncing..." << KATO_RESET << std::endl;
-                toml::value reply = toml::value{toml::table{{"settings", toml::table{{"exposureTime_ms", _camera.exposureTime_ms}, {"temperature_C", _camera.temperature_C}, {"roi", std::string(_camera.roi)}}}}};
+                toml::value reply = toml::value{toml::table{{"settings", toml::table{{"exposureTime_s", _camera.exposureTime_s}, {"temperature_C", _camera.temperature_C}, {"roi", std::string(_camera.roi)}}}}};
                 txStream << reply << "\n";
                 txMessage = txStream.str();
                 _link.Send(txMessage);
@@ -397,7 +393,7 @@ void SourceWorker(FliCamera &_camera)
         shmio::Keyword *framerate = _camera.find_keyword("FRMRATE");
         std::span<uint16_t> pixels = shmio::get_pixels_as<uint16_t>(_camera.memory);
 
-        _camera.shm_exposureTime_ms = _camera.find_keyword("EXPTIME");
+        _camera.shm_exposureTime_s = _camera.find_keyword("EXPTIME");
         _camera.shm_temperature_C = _camera.find_keyword("TEMP");
         _camera.shm_gain = _camera.find_keyword("GAIN");
         _camera.shm_roi_tl_x = _camera.find_keyword("ROI.TL.X");
@@ -425,7 +421,7 @@ void SourceWorker(FliCamera &_camera)
             framerate->value.numf = kato::function::delta_time_point_to_framerate(t0, t1);
             // _camera.overlay<uint16_t>(ttf, "now     : " + kato::function::TimeStampString(3, "%H:%M:%S", ".", t0) + "\n" +
             //                                    "FRMRATE : " + std::to_string(framerate->value.numf) + "\n" +
-            //                                    "EXPTIME : " + std::to_string(_camera.shm_exposureTime_ms->value.numl) + "\n" +
+            //                                    "EXPTIME : " + std::to_string(_camera.shm_exposureTime_s->value.numl) + "\n" +
             //                                    "TEMP    : " + std::to_string(_camera.shm_temperature_C->value.numf) + "\n" +
             //                                    "GAIN    : " + std::to_string(_camera.shm_gain->value.numf) + "\n" +
             //                                    "ROI.TL  : [" + std::to_string(_camera.shm_roi_tl_x->value.numl) + "," + std::to_string(_camera.shm_roi_tl_y->value.numl) + "]" + "\n" +
