@@ -190,10 +190,10 @@ void ListenWorker(StbCamera &_camera, ZMQLink &_link)
             try // Settings = "sync"
             {
                 std::string sync = data.at("settings").as_string();
-                kato::log::cout << KATO_MAGENTA << "stbcamera.h::ListenWorker() syncing..." << KATO_RESET << std::endl;
-                txStream << toml::value{{"settings", toml::table{{"exposureTime_s", _camera.exposureTime_s}, {"temperature_C", _camera.temperature_C}, {"gain", _camera.gain}, {"roi", std::string(_camera.roi)}}}} << "\n";
-                toml::value reply = toml::value{toml::table{{"settings", toml::table{{"exposureTime_s", _camera.exposureTime_s}, {"temperature_C", _camera.temperature_C}, {"roi", std::string(_camera.roi)}}}}};
+                kato::log::cout << KATO_MAGENTA << "stbcamera.h::ListenWorker() " << sync << " Received... " << KATO_RESET << std::endl;
+                toml::value reply = toml::value{toml::table{{"settings", toml::table{{"exposureTime_s", _camera.exposureTime_s}, {"temperature_C", _camera.temperature_C}, {"gain", _camera.gain}, {"roi", std::string(_camera.roi)}}}}};
                 txStream << reply << "\n";
+                txMessage = txStream.str();
                 _link.Send(txMessage);
                 continue;
             }

@@ -248,21 +248,6 @@ void ListenWorker(VmbCamera &_camera, ZMQLink &_link)
             {
             }
 
-            try // [settings] temperature_C = temperature_C_value
-            {
-                double temperature_C = data.at("settings").at("temperature_C").as_floating();
-                kato::log::cout << KATO_MAGENTA << "vmbcamera.h::ListenWorker() temperature_C = " << temperature_C << KATO_RESET << std::endl;
-                _camera.setTemperature_C(temperature_C);
-                toml::value reply = toml::value{toml::table{{"settings", toml::table{{"temperature_C", _camera.temperature_C}}}}};
-                txStream << reply << "\n";
-                txMessage = txStream.str();
-                _link.Send(txMessage);
-                continue;
-            }
-            catch (const std::exception &)
-            {
-            }
-
             try // [settings] gain = gain_value
             {
                 float gain = data.at("settings").at("gain").as_floating();
@@ -299,10 +284,10 @@ void ListenWorker(VmbCamera &_camera, ZMQLink &_link)
             try // Settings = "sync"
             {
                 std::string sync = data.at("settings").as_string();
-                kato::log::cout << KATO_MAGENTA << "vmbcamera.h::ListenWorker() syncing..." << KATO_RESET << std::endl;
-                txStream << toml::value{{"settings", toml::table{{"exposureTime_s", _camera.exposureTime_s}, {"temperature_C", _camera.temperature_C}, {"gain", _camera.gain}, {"roi", std::string(_camera.roi)}}}} << "\n";
-                toml::value reply = toml::value{toml::table{{"settings", toml::table{{"exposureTime_s", _camera.exposureTime_s}, {"temperature_C", _camera.temperature_C}, {"roi", std::string(_camera.roi)}}}}};
+                kato::log::cout << KATO_MAGENTA << "vmbcamera.h::ListenWorker() " << sync << " Received... " << KATO_RESET << std::endl;
+                toml::value reply = toml::value{toml::table{{"settings", toml::table{{"exposureTime_s", _camera.exposureTime_s}, {"gain", _camera.gain}, {"roi", std::string(_camera.roi)}}}}};
                 txStream << reply << "\n";
+                txMessage = txStream.str();
                 _link.Send(txMessage);
                 continue;
             }
