@@ -9,10 +9,11 @@ cc = meson.get_compiler('cpp')
 vmbcpp_dep = cc.find_library('VmbCPP', required: true)
 
 conf = configure_file(
-    input: 'vmbsource_path_def.h.in',
-    output: 'vmbsource_path_def.h',
+    input: 'vmbsource_conf_def.h.in',
+    output: 'vmbsource_conf_def.h',
     configuration: {
-        'SRC_ROOT': meson.project_source_root()
+        'VERSION': meson.project_version(),
+        'LIB_KATO_DIR': join_paths(meson.project_source_root(), 'lib', 'kato')
     }
 )
 

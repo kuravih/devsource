@@ -3,10 +3,11 @@ zmq_dep = dependency('libzmq', required: true)
 libusb10_dep = dependency('libusb-1.0')
 
 conf = configure_file(
-    input: 'flisource_path_def.h.in',
-    output: 'flisource_path_def.h',
+    input: 'flisource_conf_def.h.in',
+    output: 'flisource_conf_def.h',
     configuration: {
-        'SRC_ROOT': meson.project_source_root()
+        'VERSION': meson.project_version(),
+        'LIB_KATO_DIR': join_paths(meson.project_source_root(), 'lib', 'kato')
     }
 )
 

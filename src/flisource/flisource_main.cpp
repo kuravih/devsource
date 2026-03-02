@@ -14,7 +14,7 @@ void sigint_handler(int signal)
 
 int main()
 {
-    kato::log::cout << KATO_GREEN << "flisource_main.cpp::main() Starting " FLISOURCE_STR " (" FLISOURCE_VERSION_STR ")" << KATO_RESET << std::endl;
+    kato::log::cout << KATO_GREEN << "flisource_main.cpp::main() Starting " FLISOURCE_STR " (" FLISOURCE_VER_STR ")" << KATO_RESET << std::endl;
 
     std::signal(SIGINT, sigint_handler);
 
@@ -24,7 +24,7 @@ int main()
     std::vector<FliCamInfo> camInfos = QueryFliCamInfoList();
     if (camInfos.size() == 0)
     {
-        kato::log::cout << KATO_RED << "flistream_main.cpp::main() No cameras detected: Stopping " FLISOURCE_STR " (" FLISOURCE_VERSION_STR ")" << KATO_RESET << std::endl;
+        kato::log::cout << KATO_RED << "flistream_main.cpp::main() No cameras detected: Stopping " FLISOURCE_STR " (" FLISOURCE_VER_STR ")" << KATO_RESET << std::endl;
         return 0;
     }
     else
@@ -51,7 +51,7 @@ int main()
     listen_thread.join();
     source_thread.join();
 
-    kato::log::cout << KATO_GREEN << "flisource_main.cpp::main() Stopping " FLISOURCE_STR " (" FLISOURCE_VERSION_STR ")" << KATO_RESET << std::endl;
+    kato::log::cout << KATO_GREEN << "flisource_main.cpp::main() Stopping " FLISOURCE_STR " (" FLISOURCE_VER_STR ")" << KATO_RESET << std::endl;
 
     return 0;
 }

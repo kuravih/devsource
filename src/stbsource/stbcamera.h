@@ -9,9 +9,8 @@
 #include "kato/log.hpp"
 #include "link/zmq_link.hpp"
 #include "stbsource_def.h"
-#include "stbsource_path_def.h"
+#include "stbsource_conf_def.h"
 #include "toml11/toml.hpp"
-#include "stbsource_path_def.h"
 
 #include <atomic>
 
@@ -31,10 +30,10 @@ struct StbCamera
     shmio::SharedMemory memory;
     shmio::Keyword *shm_exposureTime_s, *shm_temperature_C, *shm_roi_tl_x, *shm_roi_tl_y, *shm_roi_br_x, *shm_roi_br_y, *shm_gain;
 
-    StbCamera(const char *_name, const char *_serial, long _port, const testbed::FrameArea<long> &_roi) : name(_name), serial(_serial), px_max(std::pow(2, 16) - 1), exposureTime_s(0.001), temperature_C(20.0), gain(0.0), full({{0, 0}, {640, 480}}), roi(_roi), datatype(shmio::DataType::UINT16), port(_port) {}
+    StbCamera(const char *_name, const char *_serial, long _port, const testbed::FrameArea<long> &_roi) : name(_name), serial(_serial), px_max(std::pow(2, 16) - 1), exposureTime_s(0.001), temperature_C(20.0), gain(0.0), full({{0, 0}, {2840, 2224}}), roi(_roi), datatype(shmio::DataType::UINT16), port(_port) {}
     int openStream()
     {
-        if (testbed::create_camera_memory(memory, (serial + "_" STBSOURCE_STREAM_STR).c_str(), full.size(), roi.size(), datatype, serial.c_str(), px_max, port) == 0)
+        if (testbed::create_camera_memory(memory, (serial + "_" STBSOURCE_STR).c_str(), full.size(), roi.size(), datatype, serial.c_str(), px_max, port) == 0)
         {
             shm_exposureTime_s = find_keyword("EXPTIME");
             shm_exposureTime_s->value.numf = exposureTime_s;

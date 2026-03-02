@@ -10,7 +10,7 @@
 #include "kato/log.hpp"
 #include "link/zmq_link.hpp"
 #include "vmbsource_def.h"
-#include "vmbsource_path_def.h"
+#include "vmbsource_conf_def.h"
 #include "toml11/toml.hpp"
 
 #include <atomic>
@@ -138,7 +138,7 @@ struct VmbCamera
     }
     int openStream()
     {
-        if (testbed::create_camera_memory(memory, (serial + "_" VMBSOURCE_STREAM_STR).c_str(), full.size(), roi.size(), datatype, serial.c_str(), px_max, port) == 0)
+        if (testbed::create_camera_memory(memory, (serial + "_" VMBSOURCE_STR).c_str(), full.size(), roi.size(), datatype, serial.c_str(), px_max, port) == 0)
         {
             shm_exposureTime_s = find_keyword("EXPTIME");
             shm_exposureTime_s->value.numf = exposureTime_s;
@@ -306,7 +306,7 @@ void SourceWorker(VmbCamera &_camera)
     kato::log::cout << KATO_MAGENTA << "vmbcamera.h::SourceWorker() Source thread starting..." << KATO_RESET << std::endl;
     if (_camera.openStream() == 0)
     {
-        kato::TrueTypeFont ttf(VMBSOURCE_SRC_ROOT "/lib/kato/ProggyClean.ttf", 12);
+        kato::TrueTypeFont ttf(KATO_DIR "/ProggyClean.ttf", 12);
 
         std::chrono::system_clock::time_point t0, t1;
         shmio::SharedStorage *storage = _camera.get_storage_ptr();

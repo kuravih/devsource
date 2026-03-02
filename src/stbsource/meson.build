@@ -6,10 +6,10 @@ lib_path = '../lib'
 lib_inc = include_directories(lib_path)
 
 conf = configure_file(
-    input: 'stbsource_path_def.h.in',
-    output: 'stbsource_path_def.h',
+    input: 'stbsource_conf_def.h.in',
+    output: 'stbsource_conf_def.h',
     configuration: {
-        'SRC_ROOT': meson.project_source_root(),
+        'VERSION': meson.project_version(),
         'LIB_KATO_DIR': join_paths(meson.project_source_root(), 'lib', 'kato')
     }
 )

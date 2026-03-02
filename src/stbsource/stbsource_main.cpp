@@ -14,12 +14,16 @@ void sigint_handler(int signal)
 
 int main()
 {
-    kato::log::cout << KATO_GREEN << "stbsource_main.cpp::main() Starting " STBSOURCE_STR " (" STBSOURCE_VERSION_STR ")" << KATO_RESET << std::endl;
+    kato::log::cout << KATO_GREEN << "stbsource_main.cpp::main() Starting " STBSOURCE_STR " (" STBSOURCE_VER_STR ")" << KATO_RESET << std::endl;
 
     std::signal(SIGINT, sigint_handler);
 
     std::thread listen_thread, source_thread;
     long port = 8001;
+
+    // long fullX = 0, fullY = 0;
+    // testbed::FrameArea<long> full = {{fullX, fullY}, {fullX + 2840, fullY + 2224}};
+    // StbCamera camera("STB Camera", "stb001", port, full);
 
     testbed::FrameArea<long> roi = {{320 - 100, 240 - 100}, {320 + 100, 240 + 100}};
     StbCamera camera("STB Camera", "stb001", port, roi);
@@ -34,7 +38,7 @@ int main()
     listen_thread.join();
     source_thread.join();
 
-    kato::log::cout << KATO_GREEN << "stbsource_main.cpp::main() Stopping " STBSOURCE_STR " (" STBSOURCE_VERSION_STR ")" << KATO_RESET << std::endl;
+    kato::log::cout << KATO_GREEN << "stbsource_main.cpp::main() Stopping " STBSOURCE_STR " (" STBSOURCE_VER_STR ")" << KATO_RESET << std::endl;
 
     return 0;
 }
