@@ -1,0 +1,9 @@
+#ifndef __FLISOURCE_CONF_DEF_H__
+#define __FLISOURCE_CONF_DEF_H__
+
+#pragma once
+
+#define FLISOURCE_VER_STR "@VERSION@"
+#define KATO_DIR "@LIB_KATO_DIR@"
+
+#endif // __FLISOURCE_CONF_DEF_H__

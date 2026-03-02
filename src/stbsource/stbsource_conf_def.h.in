@@ -1,0 +1,9 @@
+#ifndef __STBSOURCE_PATH_DEF_H__
+#define __STBSOURCE_PATH_DEF_H__
+
+#pragma once
+
+#define STBSOURCE_VER_STR "@VERSION@"
+#define KATO_DIR "@LIB_KATO_DIR@"
+
+#endif // __STBSOURCE_PATH_DEF_H__
