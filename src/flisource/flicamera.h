@@ -139,7 +139,11 @@ struct FliCamera
         setFrameType(FliFrameType::NORMAL);
         setVBinning(FliBinning::B_1X);
         setHBinning(FliBinning::B_1X);
+        if (LIBFLIAPI error = FLIControlBackgroundFlush(handle, FLI_BGFLUSH_STOP))
+            throw FliException(error);
         setNFlushes(FliFlush::F_1X);
+        if (LIBFLIAPI error = FLISetCameraMode(handle, 0))
+            throw FliException(error);
         kato::log::cout << KATO_MAGENTA << "flicamera.h::FliCamera() full = " << std::string(full) << KATO_RESET << std::endl;
         kato::log::cout << KATO_MAGENTA << "flicamera.h::FliCamera() visible = " << std::string(visible) << KATO_RESET << std::endl;
         kato::log::cout << KATO_MAGENTA << "flicamera.h::FliCamera() roi = " << std::string(roi) << KATO_RESET << std::endl;
@@ -191,6 +195,8 @@ struct FliCamera
     }
     void setExposureTime_s(const double &_exposureTime_s)
     {
+        if (LIBFLIAPI error = FLICancelExposure(handle))
+            throw FliException(error);
         shm_exposureTime_s->value.numf = exposureTime_s = _exposureTime_s;
         long exposureTime_ms = (long)(exposureTime_s * 1000);
         if (LIBFLIAPI error = FLISetExposureTime(handle, exposureTime_ms))
@@ -254,10 +260,10 @@ struct FliCamera
     {
         if (LIBFLIAPI error = FLIExposeFrame(handle))
             throw FliException(error);
-        long remExpTime_ms = (long)(exposureTime_s*1000);
+        long remExpTime_ms = (long)(exposureTime_s * 1000);
         while (true)
         {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            std::this_thread::sleep_for(std::chrono::milliseconds(10)); // NOTE: This sleep is necessary because FLIGetExposureStatus will return 0 seconds left if called too quickly after starting the exposure
             remExpTime_ms = getRemainingExpTime_ms();
             if (remExpTime_ms == 0)
                 break;
@@ -272,11 +278,16 @@ struct FliCamera
     void grabFrame(std::span<uint16_t> &_pixels)
     {
         size_t nread = 0;
-        if (LIBFLIAPI error = FLIGrabFrame(handle, _pixels.data(), memory.size, &nread) < 0)
-            throw FliException(error);
+        while (FLIGrabFrame(handle, _pixels.data(), memory.size, &nread) < 0)
+        {
+            kato::log::cout << KATO_RED << "grabFrame() Error. Retrying..." << KATO_RESET << std::endl;
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
     }
     ~FliCamera()
     {
+        FLICancelExposure(handle);
+        FLIControlBackgroundFlush(handle, FLI_BGFLUSH_STOP);
         FLIClose(handle);
     }
 };
