@@ -15,6 +15,8 @@
 
 #include <atomic>
 
+#define FLI_MODE_10MHZ 0
+
 volatile std::atomic<bool> busy{true};
 
 // ====================================================================================================================
@@ -139,10 +141,10 @@ struct FliCamera
         setFrameType(FliFrameType::NORMAL);
         setVBinning(FliBinning::B_1X);
         setHBinning(FliBinning::B_1X);
-        if (LIBFLIAPI error = FLIControlBackgroundFlush(handle, FLI_BGFLUSH_STOP))
+        if (LIBFLIAPI error = FLIControlBackgroundFlush(handle, FLI_BGFLUSH_START))
             throw FliException(error);
         setNFlushes(FliFlush::F_1X);
-        if (LIBFLIAPI error = FLISetCameraMode(handle, 0))
+        if (LIBFLIAPI error = FLISetCameraMode(handle, FLI_MODE_10MHZ))
             throw FliException(error);
         kato::log::cout << KATO_MAGENTA << "flicamera.h::FliCamera() full = " << std::string(full) << KATO_RESET << std::endl;
         kato::log::cout << KATO_MAGENTA << "flicamera.h::FliCamera() visible = " << std::string(visible) << KATO_RESET << std::endl;
