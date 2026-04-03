@@ -33,13 +33,13 @@ int main()
             kato::log::cout << KATO_GREEN << "flistream_main.cpp::main() Camera : [dev : " << camInfo.dev << ", model : " << camInfo.model << ", serial : " << camInfo.serial << "]" << KATO_RESET << std::endl;
     }
 
-    long fullX = 0, fullY = 0;
-    testbed::FrameArea<long> full = {{fullX, fullY}, {fullX + 2840, fullY + 2224}};
-    FliCamera camera(camInfos[0].dev, camInfos[0].model, camInfos[0].serial, port, full);
+    // long fullX = 0, fullY = 0;
+    // testbed::FrameArea<long> full = {{fullX, fullY}, {fullX + 2840, fullY + 2224}};
+    // FliCamera camera(camInfos[0].dev, camInfos[0].model, camInfos[0].serial, port, full);
 
-    // long OffsetX = 1023, OffsetY = 508;
-    // testbed::FrameArea<long> roi = {{OffsetX, OffsetY}, {OffsetX + 320, OffsetY + 240}};
-    // FliCamera camera(camInfos[0].dev, camInfos[0].model, camInfos[0].serial, port, roi);
+    long OffsetX = 1128, OffsetY = 1380; // get value from the cursor
+    testbed::FrameArea<long> roi = {{OffsetX - 128, OffsetY - 128}, {OffsetX + 128, OffsetY + 128}};
+    FliCamera camera(camInfos[0].dev, camInfos[0].model, camInfos[0].serial, port, roi);
 
     ZMQLink link(camera.port);
     link.setupLink();

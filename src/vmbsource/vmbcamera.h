@@ -284,7 +284,7 @@ void ListenWorker(VmbCamera &_camera, ZMQLink &_link)
             try // Settings = "sync"
             {
                 std::string sync = data.at("settings").as_string();
-                kato::log::cout << KATO_MAGENTA << "vmbcamera.h::ListenWorker() " << sync << " Received... " << KATO_RESET << std::endl;
+                kato::log::cout << KATO_MAGENTA << "vmbcamera.h::ListenWorker() syncing..." << KATO_RESET << std::endl;
                 toml::value reply = toml::value{toml::table{{"settings", toml::table{{"exposureTime_s", _camera.exposureTime_s}, {"gain", _camera.gain}, {"roi", std::string(_camera.roi)}}}}};
                 txStream << reply << "\n";
                 txMessage = txStream.str();
