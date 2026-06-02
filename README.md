@@ -37,6 +37,7 @@ Example transactions:
 <tr>
 <th>Send</th>
 <th>Receive</th>
+<th>Description</th>
 </tr>
 <tr>
 <td>
@@ -55,6 +56,9 @@ temperature_C = 20.0
 exposureTime_s = 0.001
 ```
 </td>
+<td>
+Get settings
+</td>
 </tr>
 <tr>
 <td>
@@ -70,6 +74,9 @@ exposureTime_s = 10.001
 [settings]
 exposureTime_s = 9.99
 ```
+</td>
+<td>
+Set the Exposure time (s)
 </td>
 </tr>
 <tr>
@@ -87,6 +94,9 @@ temperature_C = 25.0
 temperature_C = 20.0
 ```
 </td>
+<td>
+Set the Temperature (C)
+</td>
 </tr>
 <tr>
 <td>
@@ -103,6 +113,9 @@ y = -8
 [settings]
 roi = "(220,140),(420,340)"
 ```
+</td>
+<td>
+Move the ROI on the detector
 </td>
 </tr>
 
