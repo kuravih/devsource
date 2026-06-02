@@ -113,7 +113,7 @@ struct FliCamera
     shmio::SharedMemory memory;
     shmio::Keyword *shm_exposureTime_s, *shm_temperature_C, *shm_roi_tl_x, *shm_roi_tl_y, *shm_roi_br_x, *shm_roi_br_y, *shm_gain;
 
-    FliCamera(const char *_dev, const char *_model, const char *_serial, long _port, const testbed::FrameArea<long> &_roi) : px_max(std::pow(2, 12) - 1), exposureTime_s(0.001), temperature_C(20.0), roi(_roi), datatype(shmio::DataType::UINT16), port(_port)
+    FliCamera(const char *_dev, const char *_model, const char *_serial, long _port, const testbed::FrameArea<long> &_roi) : px_max(std::pow(2, 16) - 1), exposureTime_s(0.001), temperature_C(20.0), roi(_roi), datatype(shmio::DataType::UINT16), port(_port)
     {
         strncpy(dev, _dev, sizeof(dev) - 1);
         strncpy(model, _model, sizeof(model) - 1);

@@ -37,8 +37,8 @@ int main()
     // testbed::FrameArea<long> full = {{fullX, fullY}, {fullX + 2840, fullY + 2224}};
     // FliCamera camera(camInfos[0].dev, camInfos[0].model, camInfos[0].serial, port, full);
 
-    long OffsetX = 1128, OffsetY = 1380; // get value from the cursor
-    testbed::FrameArea<long> roi = {{OffsetX - 128, OffsetY - 128}, {OffsetX + 128, OffsetY + 128}};
+    long offset_x = 1433, offset_y = 1140; // get value from the cursor
+    testbed::FrameArea<long> roi = {{offset_x - 128, offset_y - 128}, {offset_x + 128, offset_y + 128}};
     FliCamera camera(camInfos[0].dev, camInfos[0].model, camInfos[0].serial, port, roi);
 
     ZMQLink link(camera.port);
