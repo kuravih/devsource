@@ -15,6 +15,8 @@
 #include <atomic>
 
 volatile std::atomic<bool> busy{true};
+shmio::SharedStorage *g_storage = nullptr;
+ZMQLink *g_link = nullptr;
 
 // ====================================================================================================================
 struct StbCamera
@@ -30,10 +32,16 @@ struct StbCamera
     shmio::SharedMemory memory;
     shmio::Keyword *shm_exposureTime_s, *shm_temperature_C, *shm_roi_tl_x, *shm_roi_tl_y, *shm_roi_br_x, *shm_roi_br_y, *shm_gain;
 
-    StbCamera(const char *_name, const char *_serial, long _port, const testbed::FrameArea<long> &_roi) : name(_name), serial(_serial), px_max(std::pow(2, 16) - 1), exposureTime_s(0.001), temperature_C(20.0), gain(0.0), full({{0, 0}, {2840, 2224}}), roi(_roi), datatype(shmio::DataType::UINT16), port(_port) {}
+    StbCamera(const char *_name, const char *_serial, long _port, const testbed::FrameArea<long> &_roi) : name(_name), serial(_serial), px_max(std::pow(2, 16) - 1), exposureTime_s(0.001), temperature_C(20.0), gain(0.0), full({{0, 0}, {2224, 2840}}), roi(_roi), datatype(shmio::DataType::UINT16), port(_port) {}
     int openStream()
     {
-        if (testbed::create_camera_memory(memory, (serial + "_" STBSOURCE_STR).c_str(), full.size(), roi.size(), datatype, serial.c_str(), px_max, port) == 0)
+        std::string shm_name = serial + "_" STBSOURCE_STR;
+        if (testbed::create_camera_memory(memory, shm_name.c_str(), full.size(), roi.size(), datatype, serial.c_str(), px_max, port) != 0)
+        {
+            shm_unlink(("/" + shm_name + ".shm").c_str());
+            if (testbed::create_camera_memory(memory, shm_name.c_str(), full.size(), roi.size(), datatype, serial.c_str(), px_max, port) != 0)
+                return -1;
+        }
         {
             shm_exposureTime_s = find_keyword("EXPTIME");
             shm_exposureTime_s->value.numf = exposureTime_s;
@@ -215,6 +223,7 @@ void SourceWorker(StbCamera &_camera)
 
         std::chrono::system_clock::time_point t0, t1;
         shmio::SharedStorage *storage = _camera.get_storage_ptr();
+        g_storage = storage;
         shmio::Keyword *framerate = _camera.find_keyword("FRMRATE");
         std::span<uint16_t> pixels = shmio::get_pixels_as<uint16_t>(_camera.memory);
         _camera.shm_exposureTime_s = _camera.find_keyword("EXPTIME");

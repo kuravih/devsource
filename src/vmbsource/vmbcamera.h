@@ -16,6 +16,8 @@
 #include <atomic>
 
 volatile std::atomic<bool> busy{true};
+shmio::SharedStorage *g_storage = nullptr;
+ZMQLink *g_link = nullptr;
 
 // ====================================================================================================================
 struct VmbCamInfo
@@ -67,8 +69,9 @@ struct VmbCamera
     long port;
     shmio::SharedMemory memory;
     shmio::Keyword *shm_exposureTime_s, *shm_temperature_C, *shm_roi_tl_x, *shm_roi_tl_y, *shm_roi_br_x, *shm_roi_br_y, *shm_gain;
+    std::mutex acquire_mutex;
 
-    VmbCamera(const char *_name, const char *_serial, long _port, const testbed::FrameArea<long> &_roi) : vmb(VmbCPP::VmbSystem::GetInstance()), name(_name), serial(_serial), px_max(std::pow(2, 12) - 1), exposureTime_s(0.00001), temperature_C(20.0), gain(0.0), roi(_roi), datatype(shmio::DataType::UINT16), port(_port)
+    VmbCamera(const char *_name, const char *_serial, long _port, const testbed::FrameArea<long> &_roi, double _exposureTime_s = 0.00001, double _temperature_C = 20.0, double _gain = 0.0) : vmb(VmbCPP::VmbSystem::GetInstance()), name(_name), serial(_serial), px_max(std::pow(2, 12) - 1), exposureTime_s(_exposureTime_s), temperature_C(_temperature_C), gain(_gain), roi(_roi), datatype(shmio::DataType::UINT16), port(_port)
     {
         if (VmbErrorType err = vmb.Startup(); err != VmbErrorSuccess)
             throw std::runtime_error("Could not start API, err=" + std::to_string(err));
@@ -138,7 +141,13 @@ struct VmbCamera
     }
     int openStream()
     {
-        if (testbed::create_camera_memory(memory, (serial + "_" VMBSOURCE_STR).c_str(), full.size(), roi.size(), datatype, serial.c_str(), px_max, port) == 0)
+        std::string shm_name = serial + "_" VMBSOURCE_STR;
+        if (testbed::create_camera_memory(memory, shm_name.c_str(), full.size(), roi.size(), datatype, serial.c_str(), px_max, port) != 0)
+        {
+            shm_unlink(("/" + shm_name + ".shm").c_str());
+            if (testbed::create_camera_memory(memory, shm_name.c_str(), full.size(), roi.size(), datatype, serial.c_str(), px_max, port) != 0)
+                return -1;
+        }
         {
             shm_exposureTime_s = find_keyword("EXPTIME");
             shm_exposureTime_s->value.numf = exposureTime_s;
@@ -156,7 +165,6 @@ struct VmbCamera
             shm_gain->value.numf = gain;
             return 0;
         }
-        return -1;
     }
     int closeStream()
     {
@@ -197,6 +205,7 @@ struct VmbCamera
     }
     void setROI(const testbed::FrameArea<long> &_roi)
     {
+        std::lock_guard<std::mutex> lock(acquire_mutex);
         long long offsetX = _roi.tl.x, offsetY = _roi.tl.y, width = _roi.size().width, height = _roi.size().height;
         VmbSetFeatureByName(handle, "Width", width);
         VmbSetFeatureByName(handle, "Height", height);
@@ -212,7 +221,11 @@ struct VmbCamera
         shm_gain->value.numf = gain = _gain;
         VmbSetFeatureByName(handle, "Gain", gain);
     }
-    ~VmbCamera() = default;
+    ~VmbCamera()
+    {
+        handle->Close();
+        vmb.Shutdown();
+    }
 };
 // ====================================================================================================================
 void ListenWorker(VmbCamera &_camera, ZMQLink &_link)
@@ -310,6 +323,7 @@ void SourceWorker(VmbCamera &_camera)
 
         std::chrono::system_clock::time_point t0, t1;
         shmio::SharedStorage *storage = _camera.get_storage_ptr();
+        g_storage = storage;
         shmio::Keyword *framerate = _camera.find_keyword("FRMRATE");
         std::span<uint16_t> pixels = shmio::get_pixels_as<uint16_t>(_camera.memory);
         VmbCPP::FramePtr frame;
@@ -336,21 +350,24 @@ void SourceWorker(VmbCamera &_camera)
             shmio::wait_for_request(storage);
 
             // --------------------------------------------------------------------------------------------------------
-            if (VmbErrorSuccess == _camera.handle->AcquireSingleImage(frame, 1000))
             {
-                t1 = std::chrono::system_clock::now();
-                framerate->value.numf = kato::function::delta_time_point_to_framerate(t0, t1);
+                std::lock_guard<std::mutex> lock(_camera.acquire_mutex);
+                if (VmbErrorSuccess == _camera.handle->AcquireSingleImage(frame, 1000))
+                {
+                    t1 = std::chrono::system_clock::now();
+                    framerate->value.numf = kato::function::delta_time_point_to_framerate(t0, t1);
 
-                VmbUchar_t *pBuffer;
-                frame->GetImage(pBuffer);
-                memcpy(pixels.data(), pBuffer, pixels.size() * shmio::DataTypeSize(_camera.datatype));
-                storage->lastaccesstime = kato::function::time_point_to_timespec(t1);
+                    VmbUchar_t *pBuffer;
+                    frame->GetImage(pBuffer);
+                    memcpy(pixels.data(), pBuffer, pixels.size() * shmio::DataTypeSize(_camera.datatype));
+                    storage->lastaccesstime = kato::function::time_point_to_timespec(t1);
 
-                kato::log::cout << KATO_MAGENTA << "vmbcamera.h::SourceWorker() - framerate = " << std::scientific << std::setprecision(5) << framerate->value.numf << KATO_RESET << std::flush;
-            }
-            else
-            {
-                kato::log::cout << KATO_RED << "vmbcamera.h::SourceWorker() AcquireSingleImage() failed" << KATO_RESET << std::endl;
+                    kato::log::cout << KATO_MAGENTA << "vmbcamera.h::SourceWorker() - framerate = " << std::scientific << std::setprecision(5) << framerate->value.numf << KATO_RESET << std::flush;
+                }
+                else
+                {
+                    kato::log::cout << KATO_RED << "vmbcamera.h::SourceWorker() AcquireSingleImage() failed" << KATO_RESET << std::endl;
+                }
             }
             // --------------------------------------------------------------------------------------------------------
 

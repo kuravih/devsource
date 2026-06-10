@@ -18,6 +18,8 @@
 #define FLI_MODE_10MHZ 0
 
 volatile std::atomic<bool> busy{true};
+shmio::SharedStorage *g_storage = nullptr;
+ZMQLink *g_link = nullptr;
 
 // ====================================================================================================================
 struct FliCamInfo
@@ -113,7 +115,7 @@ struct FliCamera
     shmio::SharedMemory memory;
     shmio::Keyword *shm_exposureTime_s, *shm_temperature_C, *shm_roi_tl_x, *shm_roi_tl_y, *shm_roi_br_x, *shm_roi_br_y, *shm_gain;
 
-    FliCamera(const char *_dev, const char *_model, const char *_serial, long _port, const testbed::FrameArea<long> &_roi) : px_max(std::pow(2, 16) - 1), exposureTime_s(0.001), temperature_C(20.0), roi(_roi), datatype(shmio::DataType::UINT16), port(_port)
+    FliCamera(const char *_dev, const char *_model, const char *_serial, long _port, const testbed::FrameArea<long> &_roi, double _exposureTime_s = 0.001, double _temperature_C = 20.0) : px_max(std::pow(2, 16) - 1), exposureTime_s(_exposureTime_s), temperature_C(_temperature_C), roi(_roi), datatype(shmio::DataType::UINT16), port(_port)
     {
         strncpy(dev, _dev, sizeof(dev) - 1);
         strncpy(model, _model, sizeof(model) - 1);
@@ -154,7 +156,13 @@ struct FliCamera
     }
     int openStream()
     {
-        if (testbed::create_camera_memory(memory, (std::string(serial) + "_" FLISOURCE_STR).c_str(), full.size(), roi.size(), datatype, serial, px_max, port) == 0)
+        std::string shm_name = std::string(serial) + "_" FLISOURCE_STR;
+        if (testbed::create_camera_memory(memory, shm_name.c_str(), full.size(), roi.size(), datatype, serial, px_max, port) != 0)
+        {
+            shm_unlink(("/" + shm_name + ".shm").c_str());
+            if (testbed::create_camera_memory(memory, shm_name.c_str(), full.size(), roi.size(), datatype, serial, px_max, port) != 0)
+                return -1;
+        }
         {
             shm_exposureTime_s = find_keyword("EXPTIME");
             shm_exposureTime_s->value.numf = exposureTime_s;
@@ -170,7 +178,6 @@ struct FliCamera
             shm_roi_br_y->value.numl = roi.br.y;
             return 0;
         }
-        return -1;
     }
     int closeStream()
     {
@@ -390,6 +397,7 @@ void SourceWorker(FliCamera &_camera)
 
         std::chrono::system_clock::time_point t0, t1;
         shmio::SharedStorage *storage = _camera.get_storage_ptr();
+        g_storage = storage;
         shmio::Keyword *framerate = _camera.find_keyword("FRMRATE");
         std::span<uint16_t> pixels = shmio::get_pixels_as<uint16_t>(_camera.memory);
 

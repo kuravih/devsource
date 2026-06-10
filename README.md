@@ -43,7 +43,7 @@ Example transactions:
 <td>
 
 ```toml
-settings= "sync"
+settings = "sync"
 ```
 </td>
 <td>
@@ -136,9 +136,9 @@ devsource/src$ meson compile -C builddir/
 ```
 #### run
 ```bash
-devsource/src$ ./builddir/stbsource/stbsource
-devsource/src$ ./builddir/stbsource/flisource
-devsource/src$ ./builddir/stbsource/vmbsource
+devsource/src$ ./builddir/stbsource/stbsource [--port 8001] [--exposure 0.05] [--temperature 20.0] [--gain 0] [--roi 200,150,400,350]
+devsource/src$ ./builddir/flisource/flisource [--port 8001] [--exposure 0.05] [--temperature 20.0] [--roi 200,150,400,350]
+devsource/src$ ./builddir/vmbsource/vmbsource [--port 8001] [--exposure 0.05] [--gain 0] [--roi 200,150,400,350]
 ```
 
 [1]: https://en.wikipedia.org/wiki/TOML
