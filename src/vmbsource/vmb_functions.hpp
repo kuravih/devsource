@@ -5,6 +5,99 @@
 #include <algorithm>
 #include <VmbCPP/VmbCPP.h>
 
+inline std::string VmbPrintError(const VmbError_t error)
+{
+    switch (static_cast<VmbErrorType>(error))
+    {
+    case VmbErrorSuccess:
+        return "No error";
+    case VmbErrorInternalFault:
+        return "Unexpected fault in VmbC or driver";
+    case VmbErrorApiNotStarted:
+        return "::VmbStartup() was not called before the current command";
+    case VmbErrorNotFound:
+        return "The designated instance (camera, feature etc.) cannot be found";
+    case VmbErrorBadHandle:
+        return "The given handle is not valid";
+    case VmbErrorDeviceNotOpen:
+        return "Device was not opened for usage";
+    case VmbErrorInvalidAccess:
+        return "Operation is invalid with the current access mode";
+    case VmbErrorBadParameter:
+        return "One of the parameters is invalid (usually an illegal pointer)";
+    case VmbErrorStructSize:
+        return "The given struct size is not valid for this version of the API";
+    case VmbErrorMoreData:
+        return "More data available in a string/list than space is provided";
+    case VmbErrorWrongType:
+        return "Wrong feature type for this access function";
+    case VmbErrorInvalidValue:
+        return "The value is not valid; either out of bounds or not an increment of the minimum";
+    case VmbErrorTimeout:
+        return "Timeout during wait";
+    case VmbErrorOther:
+        return "Other error";
+    case VmbErrorResources:
+        return "Resources not available (e.g. memory)";
+    case VmbErrorInvalidCall:
+        return "Call is invalid in the current context (e.g. callback)";
+    case VmbErrorNoTL:
+        return "No transport layers are found";
+    case VmbErrorNotImplemented:
+        return "API feature is not implemented";
+    case VmbErrorNotSupported:
+        return "API feature is not supported";
+    case VmbErrorIncomplete:
+        return "The current operation was not completed (e.g. a multiple registers read or write)";
+    case VmbErrorIO:
+        return "Low level IO error in transport layer";
+    case VmbErrorValidValueSetNotPresent:
+        return "The valid value set could not be retrieved, since the feature does not provide this property";
+    case VmbErrorGenTLUnspecified:
+        return "Unspecified GenTL runtime error";
+    case VmbErrorUnspecified:
+        return "Unspecified runtime error";
+    case VmbErrorBusy:
+        return "The responsible module/entity is busy executing actions";
+    case VmbErrorNoData:
+        return "The function has no data to work on";
+    case VmbErrorParsingChunkData:
+        return "An error occurred parsing a buffer containing chunk data";
+    case VmbErrorInUse:
+        return "Something is already in use";
+    case VmbErrorUnknown:
+        return "Error condition unknown";
+    case VmbErrorXml:
+        return "Error parsing XML";
+    case VmbErrorNotAvailable:
+        return "Something is not available";
+    case VmbErrorNotInitialized:
+        return "Something is not initialized";
+    case VmbErrorInvalidAddress:
+        return "The given address is out of range or invalid for internal reasons";
+    case VmbErrorAlready:
+        return "Something has already been done";
+    case VmbErrorNoChunkData:
+        return "A frame expected to contain chunk data does not contain chunk data";
+    case VmbErrorUserCallbackException:
+        return "A callback provided by the user threw an exception";
+    case VmbErrorFeaturesUnavailable:
+        return "The XML for the module is currently not loaded; the module could be in the wrong state or the XML could not be retrieved or could not be parsed properly";
+    case VmbErrorTLNotFound:
+        return "A required transport layer could not be found or loaded";
+    case VmbErrorAmbiguous:
+        return "An entity cannot be uniquely identified based on the information provided";
+    case VmbErrorRetriesExceeded:
+        return "Something could not be accomplished with a given number of retries";
+    case VmbErrorInsufficientBufferCount:
+        return "The operation requires more buffers";
+    case VmbErrorCustom:
+        return "The minimum error code to use for user defined error codes to avoid conflict with existing error codes";
+    default:
+        return "Unrecognized VmbErrorType (" + std::to_string(error) + ")";
+    }
+}
+
 inline void VmbPrintEntries(const VmbCPP::EnumEntry &entry)
 {
     std::string name;
@@ -36,7 +129,7 @@ inline void VmbPrintFeature(const VmbCPP::FeaturePtr &feature)
     err = feature->GetUnit(unit);
     // feature->GetValidValueSet
     // feature->GetValue
-    // err = feature->GetValues()
+    // err = feature->GetValues();
     // feature->GetVisibility
     // feature->SetValue
     // feature->HasIncrement
@@ -140,7 +233,7 @@ inline bool VmbSetFeatureByName(VmbCPP::CameraPtr _camera, const char *_name, lo
         }
         else
         {
-            std::cout << "error = " << error << " : name = " << _name << " : value = " << _value << "\n";
+            std::cout << "error = " << VmbPrintError(error) << " : name = " << _name << " : value = " << _value << "\n";
         }
         return false;
     }

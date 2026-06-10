@@ -15,7 +15,11 @@
 
 #include <atomic>
 
+#define FLI_MODE_10MHZ 0
+
 volatile std::atomic<bool> busy{true};
+shmio::SharedStorage *g_storage = nullptr;
+ZMQLink *g_link = nullptr;
 
 // ====================================================================================================================
 struct FliCamInfo
@@ -111,7 +115,7 @@ struct FliCamera
     shmio::SharedMemory memory;
     shmio::Keyword *shm_exposureTime_s, *shm_temperature_C, *shm_roi_tl_x, *shm_roi_tl_y, *shm_roi_br_x, *shm_roi_br_y, *shm_gain;
 
-    FliCamera(const char *_dev, const char *_model, const char *_serial, long _port, const testbed::FrameArea<long> &_roi) : px_max(std::pow(2, 12) - 1), exposureTime_s(0.001), temperature_C(20.0), roi(_roi), datatype(shmio::DataType::UINT16), port(_port)
+    FliCamera(const char *_dev, const char *_model, const char *_serial, long _port, const testbed::FrameArea<long> &_roi, double _exposureTime_s = 0.001, double _temperature_C = 20.0) : px_max(std::pow(2, 16) - 1), exposureTime_s(_exposureTime_s), temperature_C(_temperature_C), roi(_roi), datatype(shmio::DataType::UINT16), port(_port)
     {
         strncpy(dev, _dev, sizeof(dev) - 1);
         strncpy(model, _model, sizeof(model) - 1);
@@ -139,7 +143,11 @@ struct FliCamera
         setFrameType(FliFrameType::NORMAL);
         setVBinning(FliBinning::B_1X);
         setHBinning(FliBinning::B_1X);
+        if (LIBFLIAPI error = FLIControlBackgroundFlush(handle, FLI_BGFLUSH_START))
+            throw FliException(error);
         setNFlushes(FliFlush::F_1X);
+        if (LIBFLIAPI error = FLISetCameraMode(handle, FLI_MODE_10MHZ))
+            throw FliException(error);
         kato::log::cout << KATO_MAGENTA << "flicamera.h::FliCamera() full = " << std::string(full) << KATO_RESET << std::endl;
         kato::log::cout << KATO_MAGENTA << "flicamera.h::FliCamera() visible = " << std::string(visible) << KATO_RESET << std::endl;
         kato::log::cout << KATO_MAGENTA << "flicamera.h::FliCamera() roi = " << std::string(roi) << KATO_RESET << std::endl;
@@ -148,7 +156,13 @@ struct FliCamera
     }
     int openStream()
     {
-        if (testbed::create_camera_memory(memory, (std::string(serial) + "_" FLISOURCE_STR).c_str(), full.size(), roi.size(), datatype, serial, px_max, port) == 0)
+        std::string shm_name = std::string(serial) + "_" FLISOURCE_STR;
+        if (testbed::create_camera_memory(memory, shm_name.c_str(), full.size(), roi.size(), datatype, serial, px_max, port) != 0)
+        {
+            shm_unlink(("/" + shm_name + ".shm").c_str());
+            if (testbed::create_camera_memory(memory, shm_name.c_str(), full.size(), roi.size(), datatype, serial, px_max, port) != 0)
+                return -1;
+        }
         {
             shm_exposureTime_s = find_keyword("EXPTIME");
             shm_exposureTime_s->value.numf = exposureTime_s;
@@ -164,7 +178,6 @@ struct FliCamera
             shm_roi_br_y->value.numl = roi.br.y;
             return 0;
         }
-        return -1;
     }
     int closeStream()
     {
@@ -191,6 +204,8 @@ struct FliCamera
     }
     void setExposureTime_s(const double &_exposureTime_s)
     {
+        if (LIBFLIAPI error = FLICancelExposure(handle))
+            throw FliException(error);
         shm_exposureTime_s->value.numf = exposureTime_s = _exposureTime_s;
         long exposureTime_ms = (long)(exposureTime_s * 1000);
         if (LIBFLIAPI error = FLISetExposureTime(handle, exposureTime_ms))
@@ -254,10 +269,10 @@ struct FliCamera
     {
         if (LIBFLIAPI error = FLIExposeFrame(handle))
             throw FliException(error);
-        long remExpTime_ms = (long)(exposureTime_s*1000);
+        long remExpTime_ms = (long)(exposureTime_s * 1000);
         while (true)
         {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            std::this_thread::sleep_for(std::chrono::milliseconds(10)); // NOTE: This sleep is necessary because FLIGetExposureStatus will return 0 seconds left if called too quickly after starting the exposure
             remExpTime_ms = getRemainingExpTime_ms();
             if (remExpTime_ms == 0)
                 break;
@@ -272,11 +287,16 @@ struct FliCamera
     void grabFrame(std::span<uint16_t> &_pixels)
     {
         size_t nread = 0;
-        if (LIBFLIAPI error = FLIGrabFrame(handle, _pixels.data(), memory.size, &nread) < 0)
-            throw FliException(error);
+        while (FLIGrabFrame(handle, _pixels.data(), memory.size, &nread) < 0)
+        {
+            kato::log::cout << KATO_RED << "grabFrame() Error. Retrying..." << KATO_RESET << std::endl;
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
     }
     ~FliCamera()
     {
+        FLICancelExposure(handle);
+        FLIControlBackgroundFlush(handle, FLI_BGFLUSH_STOP);
         FLIClose(handle);
     }
 };
@@ -351,7 +371,7 @@ void ListenWorker(FliCamera &_camera, ZMQLink &_link)
             try // Settings = "sync"
             {
                 std::string sync = data.at("settings").as_string();
-                kato::log::cout << KATO_MAGENTA << "flicamera.h::ListenWorker() " << sync << " Received... " << KATO_RESET << std::endl;
+                kato::log::cout << KATO_MAGENTA << "flicamera.h::ListenWorker() syncing..." << KATO_RESET << std::endl;
                 toml::value reply = toml::value{toml::table{{"settings", toml::table{{"exposureTime_s", _camera.exposureTime_s}, {"temperature_C", _camera.temperature_C}, {"roi", std::string(_camera.roi)}}}}};
                 txStream << reply << "\n";
                 txMessage = txStream.str();
@@ -377,6 +397,7 @@ void SourceWorker(FliCamera &_camera)
 
         std::chrono::system_clock::time_point t0, t1;
         shmio::SharedStorage *storage = _camera.get_storage_ptr();
+        g_storage = storage;
         shmio::Keyword *framerate = _camera.find_keyword("FRMRATE");
         std::span<uint16_t> pixels = shmio::get_pixels_as<uint16_t>(_camera.memory);
 

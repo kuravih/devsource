@@ -37,12 +37,13 @@ Example transactions:
 <tr>
 <th>Send</th>
 <th>Receive</th>
+<th>Description</th>
 </tr>
 <tr>
 <td>
 
 ```toml
-settings= "sync"
+settings = "sync"
 ```
 </td>
 <td>
@@ -54,6 +55,9 @@ gain = 0.0
 temperature_C = 20.0
 exposureTime_s = 0.001
 ```
+</td>
+<td>
+Get settings
 </td>
 </tr>
 <tr>
@@ -71,6 +75,9 @@ exposureTime_s = 10.001
 exposureTime_s = 9.99
 ```
 </td>
+<td>
+Set the Exposure time (s)
+</td>
 </tr>
 <tr>
 <td>
@@ -86,6 +93,9 @@ temperature_C = 25.0
 [settings]
 temperature_C = 20.0
 ```
+</td>
+<td>
+Set the Temperature (C)
 </td>
 </tr>
 <tr>
@@ -103,6 +113,9 @@ y = -8
 [settings]
 roi = "(220,140),(420,340)"
 ```
+</td>
+<td>
+Move the ROI on the detector
 </td>
 </tr>
 
@@ -123,9 +136,9 @@ devsource/src$ meson compile -C builddir/
 ```
 #### run
 ```bash
-devsource/src$ ./builddir/stbsource/stbsource
-devsource/src$ ./builddir/stbsource/flisource
-devsource/src$ ./builddir/stbsource/vmbsource
+devsource/src$ ./builddir/stbsource/stbsource [--port 8001] [--exposure 0.05] [--temperature 20.0] [--gain 0] [--roi 200,150,400,350]
+devsource/src$ ./builddir/flisource/flisource [--port 8001] [--exposure 0.05] [--temperature 20.0] [--roi 200,150,400,350]
+devsource/src$ ./builddir/vmbsource/vmbsource [--port 8001] [--exposure 0.05] [--gain 0] [--roi 200,150,400,350]
 ```
 
 [1]: https://en.wikipedia.org/wiki/TOML
