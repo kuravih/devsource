@@ -114,6 +114,12 @@ int main(int argc, char *argv[])
         }
     }
 
+    kato::log::cout << KATO_GREEN << "stbsource_main.cpp::main() port = " << port << KATO_RESET << std::endl;
+    kato::log::cout << KATO_GREEN << "stbsource_main.cpp::main() exposure time = " << exposureTime_s << " s" << KATO_RESET << std::endl;
+    kato::log::cout << KATO_GREEN << "stbsource_main.cpp::main() temperature = " << temperature_C << " C" << KATO_RESET << std::endl;
+    kato::log::cout << KATO_GREEN << "stbsource_main.cpp::main() gain = " << gain << KATO_RESET << std::endl;
+    kato::log::cout << KATO_GREEN << "stbsource_main.cpp::main() roi = ((" << roi.br.x << "," << roi.br.y << "),(" << roi.tl.x << "," << roi.tl.y << "))" << KATO_RESET << std::endl;
+
     StbCamera camera("STB Camera", serial.c_str(), port, roi);
     camera.exposureTime_s = exposureTime_s;
     camera.temperature_C = temperature_C;

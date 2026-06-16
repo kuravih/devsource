@@ -38,21 +38,29 @@ int main(int argc, char *argv[])
     bool set_port = false, set_roi = false, set_exposure = false, set_temperature = false;
 
     static struct option long_options[] = {
-        {"port",        required_argument, nullptr, 'p'},
-        {"roi",         required_argument, nullptr, 'r'},
-        {"exposure",    required_argument, nullptr, 'e'},
+        {"port", required_argument, nullptr, 'p'},
+        {"roi", required_argument, nullptr, 'r'},
+        {"exposure", required_argument, nullptr, 'e'},
         {"temperature", required_argument, nullptr, 't'},
-        {nullptr, 0, nullptr, 0}
-    };
+        {nullptr, 0, nullptr, 0}};
 
     int opt;
     while ((opt = getopt_long(argc, argv, "p:r:e:t:", long_options, nullptr)) != -1)
     {
         switch (opt)
         {
-        case 'p': port          = std::stol(optarg); set_port        = true; break;
-        case 'e': exposureTime_s = std::stod(optarg); set_exposure   = true; break;
-        case 't': temperature_C = std::stod(optarg); set_temperature = true; break;
+        case 'p':
+            port = std::stol(optarg);
+            set_port = true;
+            break;
+        case 'e':
+            exposureTime_s = std::stod(optarg);
+            set_exposure = true;
+            break;
+        case 't':
+            temperature_C = std::stod(optarg);
+            set_temperature = true;
+            break;
         case 'r':
         {
             long x0, y0, x1, y1;
@@ -63,7 +71,8 @@ int main(int argc, char *argv[])
             }
             break;
         }
-        default: break;
+        default:
+            break;
         }
     }
 
@@ -86,9 +95,12 @@ int main(int argc, char *argv[])
         if (shmio::open_shared_memory(prev, (std::string(camInfos[0].serial) + "_" FLISOURCE_STR).c_str()) == 0)
         {
             shmio::Keyword *kw;
-            if (!set_port        && (kw = shmio::find_keyword(prev, "PORT"    ))) port          = kw->value.numl;
-            if (!set_exposure    && (kw = shmio::find_keyword(prev, "EXPTIME" ))) exposureTime_s = kw->value.numf;
-            if (!set_temperature && (kw = shmio::find_keyword(prev, "TEMP"    ))) temperature_C = kw->value.numf;
+            if (!set_port && (kw = shmio::find_keyword(prev, "PORT")))
+                port = kw->value.numl;
+            if (!set_exposure && (kw = shmio::find_keyword(prev, "EXPTIME")))
+                exposureTime_s = kw->value.numf;
+            if (!set_temperature && (kw = shmio::find_keyword(prev, "TEMP")))
+                temperature_C = kw->value.numf;
             if (!set_roi)
             {
                 shmio::Keyword *tlx = shmio::find_keyword(prev, "ROI.TL.X");
@@ -101,6 +113,11 @@ int main(int argc, char *argv[])
             shmio::close_shared_memory(prev);
         }
     }
+
+    kato::log::cout << KATO_GREEN << "flisource_main.cpp::main() port = " << port << KATO_RESET << std::endl;
+    kato::log::cout << KATO_GREEN << "flisource_main.cpp::main() exposure time = " << exposureTime_s << " s" << KATO_RESET << std::endl;
+    kato::log::cout << KATO_GREEN << "flisource_main.cpp::main() temperature = " << temperature_C << " C" << KATO_RESET << std::endl;
+    kato::log::cout << KATO_GREEN << "flisource_main.cpp::main() roi = ((" << roi.br.x << "," << roi.br.y << "),(" << roi.tl.x << "," << roi.tl.y << "))" << KATO_RESET << std::endl;
 
     FliCamera camera(camInfos[0].dev, camInfos[0].model, camInfos[0].serial, port, roi, exposureTime_s, temperature_C);
 

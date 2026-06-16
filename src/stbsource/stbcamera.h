@@ -225,7 +225,7 @@ void SourceWorker(StbCamera &_camera)
         shmio::SharedStorage *storage = _camera.get_storage_ptr();
         g_storage = storage;
         shmio::Keyword *framerate = _camera.find_keyword("FRMRATE");
-        std::span<uint16_t> pixels = shmio::get_pixels_as<uint16_t>(_camera.memory);
+        // std::span<uint16_t> pixels = shmio::get_pixels_as<uint16_t>(_camera.memory);
         _camera.shm_exposureTime_s = _camera.find_keyword("EXPTIME");
         _camera.shm_temperature_C = _camera.find_keyword("TEMP");
         _camera.shm_gain = _camera.find_keyword("GAIN");
